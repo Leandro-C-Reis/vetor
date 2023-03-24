@@ -25,7 +25,7 @@ pub struct Edge {
     pub pressed_end: bool,
     pub width: f32,
     pub moved: bool,
-    pub fixed_angle: f32,
+    pub angle: f32,
     pub parent: isize,
     pub typ: isize,
 }
@@ -44,7 +44,7 @@ impl Edge {
             pressed_start: false,
             pressed_end: false,
             moved: false,
-            fixed_angle: end.angle_to(start),
+            angle: end.angle_to(start),
             width: start.distance_to(end),
         }
     }
@@ -82,7 +82,7 @@ impl Edge {
                 
                 let angle = if parent.moved {
                     self.moved = true;
-                    parent_angle - parent.fixed_angle + self.fixed_angle
+                    parent_angle - parent.angle + self.angle
                 } else { 
                     end.angle_to(start)
                 };
@@ -106,6 +106,7 @@ impl Edge {
 
         // Clear pressed variables when mouse is not pressed anymore
         if handle.is_mouse_button_up(MouseButton::MOUSE_LEFT_BUTTON) {
+            self.angle = self.start.angle_to(self.end);
             self.pressed_end = false;
             self.pressed_start = false;
             self.moved = false;
