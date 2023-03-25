@@ -25,7 +25,8 @@ pub struct Edge {
     pub pressed_end: bool,
     pub width: f32,
     pub moved: bool,
-    pub angle: f32,
+    pub fixed_angle: f32,
+    pub moved_angle: f32,
     pub parent: isize,
     pub typ: isize,
 }
@@ -44,7 +45,8 @@ impl Edge {
             pressed_start: false,
             pressed_end: false,
             moved: false,
-            angle: end.angle_to(start),
+            moved_angle: 0.0,
+            fixed_angle: end.angle_to(start),
             width: start.distance_to(end),
         }
     }
@@ -52,6 +54,7 @@ impl Edge {
     pub fn update(&mut self, handle: &RaylibHandle, line_tree: &Vec<Edge>, point_pressed: &mut bool, pressed_root: &mut bool) -> Edge {
         let mouse_pos = handle.get_mouse_position();
         self.moved = false;
+        self.moved_angle = 0.0;
 
         if check_collision_point_circle(mouse_pos, self.end, 5.0) && !*point_pressed {
             self.pressed_end = true;
@@ -80,15 +83,16 @@ impl Edge {
                 let start = self.start;
                 let parent_angle = parent.end.angle_to(parent.start);
                 
+                // Get current static angle or rotate with parent.
                 let angle = if parent.moved {
                     self.moved = true;
-                    parent_angle - parent.angle + self.angle
+                    parent_angle - parent.fixed_angle + self.fixed_angle
                 } else { 
                     end.angle_to(start)
                 };
 
                 self.start = parent.end;
-                self.end = vector2_add(vector2_rotate(self.width, angle), self.start)
+                self.end = vector2_add(vector2_rotate(self.width, angle), self.start);
             }
 
             if self.pressed_start && self.parent < 0 {
@@ -106,10 +110,26 @@ impl Edge {
 
         // Clear pressed variables when mouse is not pressed anymore
         if handle.is_mouse_button_up(MouseButton::MOUSE_LEFT_BUTTON) {
-            self.angle = self.start.angle_to(self.end);
+            // Caculate a diference of the rotated angles.
+            if self.pressed_end {
+                let angle = self.fixed_angle;
+                self.fixed_angle = self.end.angle_to(self.start);
+                self.moved_angle = self.fixed_angle - angle;
+            }
+
+            // Recalculate rotated angles to children.
+            if self.parent >= 0 {
+                let parent = &line_tree[self.parent as usize];
+
+                if parent.moved_angle != 0.0 {
+                    let angle = self.fixed_angle;
+                    self.fixed_angle = parent.moved_angle + self.fixed_angle;
+                    self.moved_angle = self.fixed_angle - angle;
+                }
+            }
+
             self.pressed_end = false;
             self.pressed_start = false;
-            self.moved = false;
             *point_pressed = false;
             *pressed_root = false;
         }

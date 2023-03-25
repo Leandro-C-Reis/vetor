@@ -11,6 +11,7 @@ fn main() {
     let screen_height = 700;
     let center_x = screen_width / 2;
     let center_y = screen_height / 2;
+    let center = Vector2::new(center_x as f32,center_y as f32);
 
     let (mut handle, thread) = raylib::init()
         .size(screen_width, screen_height)
@@ -20,8 +21,8 @@ fn main() {
     let mut point_pressed = false;
     let mut point_pressed_root = false;
 
-    let points = imports::bin::import_from_raw("men.vec");
-    let mut line_tree = create_figure(points); 
+    let points = imports::bin::import_from_raw("men.vec", center);
+    let mut line_tree = create_figure(points, ); 
 
     handle.set_target_fps(60);
     while !handle.window_should_close() {

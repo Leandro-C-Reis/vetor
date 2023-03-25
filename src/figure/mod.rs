@@ -16,8 +16,6 @@ pub fn create_figure(points: Vec<Point>) -> Vec<Edge> {
         }
 
         let p1 = points[point.parent].clone();
-        let start = Vector2::new(p1.x, p1.y);
-        let end = Vector2::new(point.x, point.y);
         let parent = line_tree.iter()
             .position(|x| x.p2.index == point.parent)
             .map(|x| x as isize);

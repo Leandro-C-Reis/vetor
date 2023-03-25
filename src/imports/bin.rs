@@ -1,8 +1,10 @@
 use std::{fs};
 
+use raylib::prelude::Vector2;
+
 use crate::{figure::edge::*};
 
-pub fn import_from_raw(file: &str) -> Vec<Point> {
+pub fn import_from_raw(file: &str, center: Vector2) -> Vec<Point> {
     let file = fs::read_to_string(file).expect(&format!("Should be able to read the file: {}", file));
     let mut points: Vec<Point> = Vec::new();
 
@@ -21,7 +23,7 @@ pub fn import_from_raw(file: &str) -> Vec<Point> {
             None => ()
         }
 
-        points.push(Point { x,y,parent, index, chidren: vec![], typ });
+        points.push(Point { x: x + center.x, y: y + center.y, parent, index, chidren: vec![], typ });
     }
 
     points
