@@ -1,8 +1,20 @@
 use raylib::prelude::*;
 
+use crate::maths::*;
+
 pub enum EdgeType {
     LINE = 1,
     CIRCLE = 2
+}
+
+impl From<isize> for EdgeType {
+    fn from(value: isize) -> Self {
+        match value {
+            1 => EdgeType::LINE,
+            2 => EdgeType::CIRCLE,
+            _ => EdgeType::LINE
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -35,6 +47,7 @@ impl Edge {
     pub fn new(p1: Point, p2: Point, parent: isize, typ: isize) -> Edge {
         let start = Vector2::new(p1.x, p1.y);
         let end = Vector2::new(p2.x, p2.y);
+
         Edge {
             p1,
             p2,
@@ -92,19 +105,19 @@ impl Edge {
                 };
 
                 self.start = parent.end;
-                self.end = vector2_add(vector2_rotate(self.width, angle), self.start);
+                self.end = vector2_rotate(self.width, angle).add(self.start);
             }
 
             if self.pressed_start && self.parent < 0 {
                 let angle = self.end.angle_to(self.start);
                 self.start = mouse_pos;
-                self.end = vector2_add(vector2_rotate(self.width, angle), self.start);
+                self.end = vector2_rotate(self.width, angle).add(self.start);
             }
 
             if self.pressed_end {
                 let angle = mouse_pos.angle_to(self.start);
                 self.moved = true;
-                self.end = vector2_add(vector2_rotate(self.width, angle), self.start);
+                self.end = vector2_rotate(self.width, angle).add(self.start);
             }
         }
 
@@ -136,23 +149,48 @@ impl Edge {
 
         self.clone()
     }
-}
 
-pub fn vector2_rotate(length: f32, angle: f32)  -> Vector2 {
-    let cs = (angle.cos() * 100.0).round() / 100.0;
-    let sn = (angle.sin() * 100.0).round() / 100.0;
+    pub fn draw(&self, draw_handle: &mut RaylibDrawHandle) {
+        match EdgeType::from(self.typ) {
+            EdgeType::LINE => {
+                let radian = self.start.angle_to(self.end);
+                let rotation = radian * 180.0 / PI as f32;
+                let distance = self.start.distance_to(self.end);
+        
+                let rect = Rectangle {
+                    x: self.start.x as f32,
+                    y: self.start.y as f32,
+                    width: distance,
+                    height: 20.0,
+                };
+        
+                let mut point_color = Color::RED;
+        
+                if self.parent == -1 {
+                    point_color = Color::ORANGE;
+                }
+        
+                draw_handle.draw_rectangle_pro(rect, Vector2 { x:0 as f32, y: 10 as f32 }, rotation, Color::BLACK);
+                draw_handle.draw_circle_v(self.start, 10.0, Color::BLACK);
+                draw_handle.draw_circle_v(self.end, 10.0, Color::BLACK);
+                draw_handle.draw_circle_v(self.start, 5.0, point_color);
+                draw_handle.draw_circle_v(self.end, 5.0, point_color);
+            },
+            EdgeType::CIRCLE => {
+                let radius = self.width / 2.0;
+                let center = vector2_rotate(radius, self.start.angle_to(self.end)).add(self.end);
 
-    // Multiply by -1 because coordinate rotation is reversed.
-    let x = (-1.0 * length * cs).round();
-    let y = (-1.0 * length * sn).round();
-    
-    Vector2::new(x, y)
-}
-
-pub fn vector2_subtract(v1: Vector2, v2: Vector2) -> Vector2 {
-    Vector2::new(v1.x - v2.x, v1.y - v2.y)
-}
-
-pub fn vector2_add(v1: Vector2, v2: Vector2) -> Vector2 {
-    Vector2::new(v1.x + v2.x, v1.y + v2.y)
+                draw_handle.draw_ring(
+                    Vector2 { x: center.x, y: center.y},
+                    30.0,
+                    50.0,
+                    0.0,
+                    360.0,
+                    0,
+                    Color::BLACK);
+                draw_handle.draw_circle_v(self.start, 5.0, Color::RED);
+                draw_handle.draw_circle_v(self.end, 5.0, Color::RED);
+            }
+        }
+    }
 }
