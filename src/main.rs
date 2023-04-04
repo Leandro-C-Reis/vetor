@@ -39,7 +39,7 @@ fn main() {
     };
 
     // Load custom icons.
-    unsafe { GuiLoadIcons(CString::new("./src/assets/icons/iconset.rgi".to_owned()).unwrap().into_raw(), true) };
+    unsafe { GuiLoadIcons(CString::new("./src/icons/iconset.rgi".to_owned()).unwrap().into_raw(), true) };
 
     handle.set_target_fps(60);
     while !handle.window_should_close() {

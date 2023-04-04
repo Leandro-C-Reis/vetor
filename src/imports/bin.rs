@@ -4,6 +4,15 @@ use raylib::prelude::Vector2;
 
 use crate::{figure::{edge::*, Figure}};
 
+#[derive(Clone)]
+struct Point {
+    pub x: f32,
+    pub y: f32,
+    pub typ: isize,
+    pub parent: usize,
+    pub index: usize,
+}
+
 pub fn import_from_raw(file: &str, center: Vector2) -> Figure {
     let file = fs::read_to_string(file).expect(&format!("Should be able to read the file: {}", file));
     let mut points: Vec<Point> = Vec::new();
@@ -18,16 +27,12 @@ pub fn import_from_raw(file: &str, center: Vector2) -> Figure {
         let parent = edge[3].parse::<usize>().expect("parent must be a numeric int 32");
         let index = edge[4].parse::<usize>().expect("index must be a numeric int 32");
 
-        match points.get_mut(parent) {
-            Some(point) => point.chidren.push(index),
-            None => ()
-        }
-
-        points.push(Point { x: x + center.x, y: y + center.y, parent, index, chidren: vec![], typ });
+        points.push(Point { x: x + center.x, y: y + center.y, parent, index, typ });
     }
 
     let mut figure_tree: Vec<Edge> = vec![];
-
+    let mut indexes: Vec<usize> = vec![];
+    
     for i in 0..points.len() {
         let point = points[i].clone();
 
@@ -36,11 +41,12 @@ pub fn import_from_raw(file: &str, center: Vector2) -> Figure {
         }
 
         let p1 = points[point.parent].clone();
-        let parent = figure_tree.iter()
-            .position(|x| x.p2.index == point.parent)
+        let parent = indexes.iter()
+            .position(|index| *index == point.parent)
             .map(|x| x as isize);
-            
-        figure_tree.push(Edge::new(p1, point.clone(), parent.unwrap_or_else(|| -1), point.typ));
+        
+        indexes.push(point.index);
+        figure_tree.push(Edge::new(Vector2::new(p1.x, p1.y), Vector2::new(point.x, point.y), parent.unwrap_or_else(|| -1), point.typ));
     }
 
     Figure::new(figure_tree)

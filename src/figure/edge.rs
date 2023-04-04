@@ -17,22 +17,10 @@ impl From<isize> for EdgeType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct Point {
-    pub x: f32,
-    pub y: f32,
-    pub typ: isize,
-    pub parent: usize,
-    pub index: usize,
-    pub chidren: Vec<usize>
-}
-
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Copy)]
 pub struct Edge {
     pub start: Vector2,
     pub end: Vector2,
-    pub p1: Point,
-    pub p2: Point,
     pub pressed_start: bool,
     pub pressed_end: bool,
     pub width: f32,
@@ -44,13 +32,8 @@ pub struct Edge {
 }
 
 impl Edge {
-    pub fn new(p1: Point, p2: Point, parent: isize, typ: isize) -> Edge {
-        let start = Vector2::new(p1.x, p1.y);
-        let end = Vector2::new(p2.x, p2.y);
-
+    pub fn new(start: Vector2, end: Vector2, parent: isize, typ: isize) -> Edge {
         Edge {
-            p1,
-            p2,
             start,
             end,
             parent,
