@@ -3,21 +3,24 @@ use raylib::{RaylibHandle, prelude::RaylibDrawHandle};
 
 use self::edge::Edge;
 
+#[derive(PartialEq)]
 pub struct Figure {
-    tree: Vec<Edge>
+    tree: Vec<Edge>,
+    presset_root: bool,
 }
 
 impl Figure {
     pub fn new(tree: Vec<Edge>) -> Figure {
         Figure {
-            tree
+            tree,
+            presset_root: false
         }
     }
 
-    pub fn update(&mut self, handle: &RaylibHandle, point_pressed: &mut bool, pressed_root: &mut bool) {
+    pub fn update(&mut self, handle: &RaylibHandle, point_pressed: &mut bool) {
         for i in 0..self.tree.len() {
             let mut edge: Edge = self.tree[i].clone();
-            self.tree[i] = edge.update(&handle, &self.tree, point_pressed, pressed_root);
+            self.tree[i] = edge.update(&handle, &self.tree, point_pressed, &mut self.presset_root);
         }
     }
 

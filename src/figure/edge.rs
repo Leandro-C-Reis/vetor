@@ -17,7 +17,7 @@ impl From<isize> for EdgeType {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Point {
     pub x: f32,
     pub y: f32,
@@ -27,7 +27,7 @@ pub struct Point {
     pub chidren: Vec<usize>
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Edge {
     pub start: Vector2,
     pub end: Vector2,
