@@ -32,7 +32,8 @@ fn main() {
         .build();
     
     let mut figure = imports::bin::import_from_raw("men.vec", center);
-    let edit_tab = Tab::edit(figure);
+    let texture = handle.load_render_texture(&thread, handle.get_screen_width() as u32, handle.get_screen_height() as u32).ok().unwrap();
+    let edit_tab = Tab::edit(figure, texture);
     let mut window = Window {
         tabs: vec![edit_tab.clone(), Tab::animate()],
         selected_tab: edit_tab,
@@ -51,7 +52,7 @@ fn main() {
         let mut draw_handle = handle.begin_drawing(&thread);
 
         draw_handle.clear_background(Color::RAYWHITE);
-        window.draw(&mut draw_handle);
+        window.draw(&mut draw_handle, &thread);
         
         // ===== END ======
     }

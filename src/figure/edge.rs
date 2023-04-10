@@ -2,17 +2,31 @@ use raylib::prelude::*;
 
 use crate::maths::*;
 
-pub enum EdgeType {
+#[derive(Debug, Clone, PartialEq, Copy)]
+pub enum EdgeFormat {
     LINE = 1,
     CIRCLE = 2
 }
 
-impl From<isize> for EdgeType {
+impl From<isize> for EdgeFormat {
     fn from(value: isize) -> Self {
         match value {
-            1 => EdgeType::LINE,
-            2 => EdgeType::CIRCLE,
-            _ => EdgeType::LINE
+            1 => EdgeFormat::LINE,
+            2 => EdgeFormat::CIRCLE,
+            _ => EdgeFormat::LINE
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Copy)]
+pub struct EdgeDrawOption {
+    point: bool,
+}
+
+impl EdgeDrawOption {
+    pub fn new() -> EdgeDrawOption {
+        EdgeDrawOption {
+            point: true,
         }
     }
 }
@@ -28,7 +42,7 @@ pub struct Edge {
     pub fixed_angle: f32,
     pub moved_angle: f32,
     pub parent: isize,
-    pub typ: isize,
+    pub format: EdgeFormat,
 }
 
 impl Edge {
@@ -37,7 +51,7 @@ impl Edge {
             start,
             end,
             parent,
-            typ,
+            format: EdgeFormat::from(typ),
             pressed_start: false,
             pressed_end: false,
             moved: false,
@@ -59,16 +73,11 @@ impl Edge {
 
         // Check if point is collided and if root point is pressed
         if check_collision_point_circle(mouse_pos, self.start, 5.0) 
-            && !*point_pressed 
-            || self.parent == -1 
-            && *pressed_root 
+            && self.parent == -1 && (!*point_pressed || *pressed_root)
         {
             self.pressed_start = true;
             *point_pressed = true;
-
-            if self.parent == -1 {
-                *pressed_root = true;
-            }
+            *pressed_root = true;
         }
 
         if handle.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
@@ -133,9 +142,9 @@ impl Edge {
         self.clone()
     }
 
-    pub fn draw(&self, draw_handle: &mut RaylibDrawHandle) {
-        match EdgeType::from(self.typ) {
-            EdgeType::LINE => {
+    pub fn draw(&self, draw_handle: &mut RaylibTextureMode<RaylibDrawHandle>, option: EdgeDrawOption) {
+        match self.format {
+            EdgeFormat::LINE => {
                 let radian = self.start.angle_to(self.end);
                 let rotation = radian * 180.0 / PI as f32;
                 let distance = self.start.distance_to(self.end);
@@ -156,10 +165,13 @@ impl Edge {
                 draw_handle.draw_rectangle_pro(rect, Vector2 { x:0 as f32, y: 10 as f32 }, rotation, Color::BLACK);
                 draw_handle.draw_circle_v(self.start, 10.0, Color::BLACK);
                 draw_handle.draw_circle_v(self.end, 10.0, Color::BLACK);
-                draw_handle.draw_circle_v(self.start, 5.0, point_color);
-                draw_handle.draw_circle_v(self.end, 5.0, point_color);
+
+                if option.point {
+                    draw_handle.draw_circle_v(self.start, 5.0, point_color);
+                    draw_handle.draw_circle_v(self.end, 5.0, point_color);
+                }
             },
-            EdgeType::CIRCLE => {
+            EdgeFormat::CIRCLE => {
                 let radius = self.width / 2.0;
                 let center = vector2_rotate(radius, self.start.angle_to(self.end)).add(self.end);
 
@@ -171,8 +183,11 @@ impl Edge {
                     360.0,
                     0,
                     Color::BLACK);
-                draw_handle.draw_circle_v(self.start, 5.0, Color::RED);
-                draw_handle.draw_circle_v(self.end, 5.0, Color::RED);
+
+                if option.point {
+                    draw_handle.draw_circle_v(self.start, 5.0, Color::RED);
+                    draw_handle.draw_circle_v(self.end, 5.0, Color::RED);
+                }
             }
         }
     }
