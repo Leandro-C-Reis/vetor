@@ -4,18 +4,62 @@ use raylib::{prelude::*, ffi::CheckCollisionPointRec};
 
 use crate::{icons::VetorIcons, figure::Figure};
 
+struct Button {
+    pub activated: bool,
+    pub icon: Option<CString>,
+    pub start: Vector2,
+    pub len: f32,
+}
+
+impl Button {
+    pub fn new(start: Vector2) -> Button {
+        Button {
+            activated: false,
+            len: 30.0,
+            icon: None,
+            start
+        }
+    }
+
+    pub fn set_icon(&mut self, handle: &mut RaylibDrawHandle, icon: VetorIcons) {
+        self.icon = Some(
+            CString::new(handle.gui_icon_text(icon.into(), None)).unwrap()
+        );
+    }
+
+    pub fn dynamic_new(row: i32, col: i32, start: Vector2, width: f32) -> Button {
+        let gap = width * 0.05;
+        let icon_width = (width / 2.0) - gap;
+
+        let factorx = (col as f32 * icon_width) + if col > 0 {gap * 1.5} else {gap / 2.0};
+        let factory = (row as f32 * icon_width) + gap * (row + 1) as f32;
+
+        Button {
+            activated: false,
+            len: icon_width,
+            icon: None,
+            start: Vector2::new(start.x + factorx, start.y + factory)
+        }
+    }
+}
+
 pub enum Tab {
     Edit {
         figure: Figure,
         framebuffer: RenderTexture2D,
+        sidebar_width: f32,
+        start: Vector2,
         btn_pressed: bool,
-        circle: bool,
-        clone: bool,
-        delete: bool,
-        change_root: bool,
-        toggle_type: bool,
-        divide: bool,
-        insert: bool,
+        circle: Button,
+        insert: Button,
+        hexagon: Button,
+        copy: Button,
+        toggle_type: Button,
+        delete: Button,
+        divide: Button,
+        circle_fill: Button,
+        root: Button,
+        format: Button,
     },
     Animation {
         btn_pressed: bool,
@@ -40,17 +84,36 @@ impl Tab {
     }
 
     pub fn edit(figure: Figure, texture: RenderTexture2D) -> Rc<RefCell<Tab>> {
+        let sidebar_width = 80.0;
+        let start = Vector2::new(0.0, 30.0);
+        
+        let circle = Button::dynamic_new(0, 0, start, sidebar_width);
+        let insert = Button::dynamic_new(0, 1, start, sidebar_width);
+        let hexagon = Button::dynamic_new(1, 0, start, sidebar_width);
+        let copy = Button::dynamic_new(1, 1, start, sidebar_width);
+        let toggle_type = Button::dynamic_new(2, 0, start, sidebar_width);
+        let delete = Button::dynamic_new(2, 1, start, sidebar_width);
+        let divide = Button::dynamic_new(3, 0, start, sidebar_width);
+        let circle_fill = Button::dynamic_new(3, 1, start, sidebar_width);
+        let root = Button::dynamic_new(4, 0, start, sidebar_width);
+        let format = Button::dynamic_new(4, 1, start, sidebar_width);
+
         Rc::new(
             RefCell::new(
                 Tab::Edit {
                     btn_pressed: false,
-                    circle: false,
-                    clone: false,
-                    delete: false,
-                    change_root: false,
-                    toggle_type: false,
-                    divide: false,
-                    insert: false,
+                    circle,
+                    insert,
+                    hexagon,
+                    copy,
+                    toggle_type,
+                    delete,
+                    divide,
+                    circle_fill,
+                    root,
+                    format,
+                    start,
+                    sidebar_width,
                     figure,
                     framebuffer: texture
                 }
@@ -91,35 +154,33 @@ impl Window {
             Tab::Edit { figure, btn_pressed, toggle_type, divide, insert, .. } => {
                 figure.update(handle);
 
-                *btn_pressed = figure.pressed;
-
-                if *btn_pressed {
-                    if *toggle_type {
+                if figure.pressed && *btn_pressed {
+                    if toggle_type.activated {
                         match figure.selected {
                             Some(index) => figure.toggle_type(index),
                             _ => ()
                         }
                         
-                        *toggle_type = false;
+                        toggle_type.activated = false;
                     }
                     
-                    if *divide {
+                    if divide.activated {
                         match figure.selected {
                             Some(index) => figure.divide(index),
                             _ => ()
                         }
                         
-                        *divide = false;
+                        divide.activated = false;
                     }
 
-                    if *insert {
+                    if insert.activated {
                         match figure.selected {
                             Some(index) => figure.insert(index),
                             _ => ()
                         }
 
                         if figure.tmp_edge.is_none() {
-                            *insert = false;
+                            insert.activated = false;
                         }
                     }
                 }
@@ -129,19 +190,26 @@ impl Window {
     }
 
     pub fn draw(&self, handle: &mut RaylibDrawHandle, thread: &RaylibThread) {
-        let width = 80;
-        let height = handle.get_screen_height() - 30;
-        let start = Vector2::new(0.0 , 30.0);
-
         // Draw current selected tab
         match &mut *(*self.selected_tab).borrow_mut() {
             Tab::Edit { 
                 figure,
                 framebuffer,
-                toggle_type, divide,
+                toggle_type, 
+                divide,
                 insert,
-                ..
+                circle,
+                circle_fill,
+                copy,
+                delete,
+                format,
+                hexagon,
+                root,
+                start,
+                sidebar_width,
+                btn_pressed,
             } => {
+                let height = handle.get_screen_height() - start.y as i32;
                 // ===== Drawing figure =====
                 {
                     let mut draw_texture = handle.begin_texture_mode(thread, framebuffer);
@@ -155,95 +223,52 @@ impl Window {
                 );
                 // ===== END Drawing figure =====
                 // ===== Drawing sidebar edit menu =====
-                handle.draw_rectangle(start.x as i32, start.y as i32, width, height, Color::DARKGRAY);
-        
-                let mut icons = vec![];
-                icons.push(
-                    ("circle", CString::new(handle.gui_icon_text(VetorIcons::ICON_CIRCLE.into(), None)).unwrap())
-                );
-                icons.push(
-                    ("line", CString::new(handle.gui_icon_text(VetorIcons::ICON_LINE.into(), None)).unwrap())
-                );
-                icons.push(
-                    ("hexagon", CString::new(handle.gui_icon_text(VetorIcons::ICON_HEXAGON.into(), None)).unwrap())
-                );
-                icons.push(
-                    ("copy", CString::new(handle.gui_icon_text(VetorIcons::ICON_COPY.into(), None)).unwrap())
-                );
-                icons.push(
-                    ("toggle", CString::new(handle.gui_icon_text(VetorIcons::ICON_CIRCLE_LINED.into(), None)).unwrap())
-                );
-                icons.push(
-                    ("delete", CString::new(handle.gui_icon_text(VetorIcons::ICON_CROSS_BOLD.into(), None)).unwrap())
-                );
-                icons.push(
-                    ("divide", CString::new(handle.gui_icon_text(VetorIcons::ICON_DIVIDE.into(), None)).unwrap())
-                );
-                icons.push(
-                    ("undefined", CString::new(handle.gui_icon_text(VetorIcons::ICON_UNDEFINED.into(), None)).unwrap())
-                );
-                icons.push(
-                    ("root", CString::new(handle.gui_icon_text(VetorIcons::ICON_ROOT.into(), None)).unwrap())
-                );
-                icons.push(
-                    ("format", CString::new(handle.gui_icon_text(VetorIcons::ICON_VERTEX_FORMAT.into(), None)).unwrap())
-                );
 
-                let mut col = 0;
-                let mut row = 0;
-                let gap = width as f32 * 0.05;
-                let icon_width = (width / 2) as f32 - gap;
-                
+                handle.draw_rectangle(start.x as i32, start.y as i32, *sidebar_width as i32, height, Color::DARKGRAY);
+
+                if circle.icon.is_none() {circle.set_icon(handle, VetorIcons::ICON_CIRCLE)}
+                if insert.icon.is_none() {insert.set_icon(handle, VetorIcons::ICON_LINE)}
+                if hexagon.icon.is_none() {hexagon.set_icon(handle, VetorIcons::ICON_HEXAGON)}
+                if copy.icon.is_none() {copy.set_icon(handle, VetorIcons::ICON_COPY)}
+                if toggle_type.icon.is_none() {toggle_type.set_icon(handle, VetorIcons::ICON_CIRCLE_LINED)}
+                if delete.icon.is_none() {delete.set_icon(handle, VetorIcons::ICON_CROSS_BOLD)}
+                if divide.icon.is_none() {divide.set_icon(handle, VetorIcons::ICON_DIVIDE)}
+                if circle_fill.icon.is_none() {circle_fill.set_icon(handle, VetorIcons::ICON_UNDEFINED)}
+                if root.icon.is_none() {root.set_icon(handle, VetorIcons::ICON_ROOT)}
+                if format.icon.is_none() {format.set_icon(handle, VetorIcons::ICON_VERTEX_FORMAT)}
+
                 fn draw_rec(handle: &mut RaylibDrawHandle,rec: Rectangle) {
                     handle.draw_rectangle(rec.x as i32, rec.y as i32, rec.width as i32, rec.height as i32, Color::new(91, 178, 217, 120));
                 }
 
-                for (i, (t, icon)) in icons.iter().enumerate() {
-                    let factorx = (col as f32 * icon_width) + if col > 0 {gap * 1.5} else {gap / 2.0};
-                    let factory = (row as f32 * icon_width) + gap * (row + 1) as f32;
-
-                    if col > 0 { col=0; row+=1 } else { col+=1 };
-
+                for btn in [circle, insert, hexagon, copy, toggle_type, delete, divide, circle_fill, root, format] {
                     handle.gui_set_style(GuiControl::BUTTON, GuiControlProperty::TEXT_ALIGNMENT as i32, GuiTextAlignment::GUI_TEXT_ALIGN_CENTER as i32);
-                    let btn_press = handle.gui_button(rrect(start.x + factorx, start.y + factory, icon_width, icon_width), Some(&icon));
 
-                    match *t {
-                        "toggle" => {
-                            if btn_press {
-                                *toggle_type = !*toggle_type
-                            }
+                    let btn_press = handle.gui_button(
+                        rrect(btn.start.x, btn.start.y, btn.len, btn.len), Some(&btn.icon.clone().unwrap())
+                    );
 
-                            if *toggle_type {
-                                draw_rec(handle, rrect(start.x + factorx, start.y + factory, icon_width, icon_width));
-                            }
-                        },
-                        "divide" => {
-                            if btn_press {
-                                *divide = !*divide;
-                            }
-                            
-                            if *divide {
-                                draw_rec(handle, rrect(start.x + factorx, start.y + factory, icon_width, icon_width));
-                            }
-                        },
-                        "line" => {
-                            if btn_press {
-                                *insert = !*insert;
-                            }
+                    let must_toggle = btn_press && *btn_pressed && btn.activated;
 
-                            if *insert {
-                                draw_rec(handle, rrect(start.x + factorx, start.y + factory, icon_width, icon_width));
-                            }
-                        }
-                        _ => ()
+                    if btn_press && !*btn_pressed {
+                        *btn_pressed = true;
+                        btn.activated = true;
+                    }
+                    
+                    if must_toggle {
+                        btn.activated = false;
+                        *btn_pressed = false
                     }
 
+                    if btn.activated {
+                        draw_rec(handle, rrect(btn.start.x, btn.start.y, btn.len, btn.len));
+                    }
                 }
                 // ===== END Drawing sidebar edit menu =====
             },
             Tab::Animation { .. } => ()
         }
-        
+
         // Draw tab menu
         handle.draw_rectangle(0, 0, handle.get_screen_width(), 30, Color::LIGHTGRAY);
         for (i, tab) in self.tabs.iter().enumerate() {
