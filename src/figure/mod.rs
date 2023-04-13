@@ -216,13 +216,13 @@ impl Figure {
         let mut changed_indexes = HashMap::new();
         
         for i in index..self.tree.len() {
-            changed_indexes.insert(i, i -1);
+            changed_indexes.insert(i, i as isize - 1);
             
             match changed_indexes.get(&i) {
                 Some(p) => {
                     log!("Changed index: {} => {}", i, p);
                     for child in self.get_children(i as isize) {
-                        self.tree[child].parent = *p as isize;
+                        self.tree[child].parent = *p;
                     }
                 }
                 _ => ()
