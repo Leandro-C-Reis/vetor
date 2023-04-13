@@ -5,6 +5,7 @@ mod icons;
 mod figure;
 mod imports;
 mod maths;
+mod util;
 
 use raylib::prelude::*;
 use raylib::ffi::GuiLoadIcons;

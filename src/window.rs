@@ -151,7 +151,15 @@ impl Window {
         let mut tab = (*self.selected_tab).borrow_mut();
 
         match &mut *tab {
-            Tab::Edit { figure, btn_pressed, toggle_type, divide, insert, .. } => {
+            Tab::Edit { 
+                figure, 
+                btn_pressed, 
+                toggle_type, 
+                divide,
+                insert,
+                delete,
+                ..
+            } => {
                 figure.update(handle);
 
                 if figure.pressed && *btn_pressed {
@@ -162,6 +170,7 @@ impl Window {
                         }
                         
                         toggle_type.activated = false;
+                        *btn_pressed = false;
                     }
                     
                     if divide.activated {
@@ -171,6 +180,7 @@ impl Window {
                         }
                         
                         divide.activated = false;
+                        *btn_pressed = false;
                     }
 
                     if insert.activated {
@@ -181,7 +191,18 @@ impl Window {
 
                         if figure.tmp_edge.is_none() {
                             insert.activated = false;
+                            *btn_pressed = false;
                         }
+                    }
+
+                    if delete.activated {
+                        match figure.selected {
+                            Some(index) => figure.delete(index),
+                            _ => ()
+                        }
+
+                        delete.activated = false;
+                        *btn_pressed = false;
                     }
                 }
             },

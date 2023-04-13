@@ -61,6 +61,12 @@ impl Edge {
         }
     }
 
+    /// Calculate real end position rotating on fixed angle
+    /// with current width and then sum with start vector.
+    pub fn get_real_end(&self) -> Vector2 {
+        vector2_rotate(self.width, self.fixed_angle).add(self.start)
+    }
+
     pub fn update(&mut self, handle: &RaylibHandle, line_tree: &Vec<Edge>, point_pressed: &mut bool, pressed_root: &mut bool) -> Edge {
         let mouse_pos = handle.get_mouse_position();
         self.moved = false;
@@ -156,20 +162,9 @@ impl Edge {
                     height: 20.0,
                 };
         
-                let mut point_color = Color::RED;
-        
-                if self.parent == -1 {
-                    point_color = Color::ORANGE;
-                }
-        
                 draw_handle.draw_rectangle_pro(rect, Vector2 { x:0 as f32, y: 10 as f32 }, rotation, Color::BLACK);
                 draw_handle.draw_circle_v(self.start, 10.0, Color::BLACK);
                 draw_handle.draw_circle_v(self.end, 10.0, Color::BLACK);
-
-                if option.point {
-                    draw_handle.draw_circle_v(self.start, 5.0, point_color);
-                    draw_handle.draw_circle_v(self.end, 5.0, point_color);
-                }
             },
             EdgeFormat::CIRCLE => {
                 let radius = self.width / 2.0;
@@ -182,13 +177,21 @@ impl Edge {
                     0.0,
                     360.0,
                     0,
-                    Color::BLACK);
-
-                if option.point {
-                    draw_handle.draw_circle_v(self.start, 5.0, Color::RED);
-                    draw_handle.draw_circle_v(self.end, 5.0, Color::RED);
-                }
+                    Color::BLACK
+                );
             }
         }
+    }
+
+    /// Draw edge points
+    pub fn draw_points(&self, draw_handle: &mut RaylibTextureMode<RaylibDrawHandle>) {
+        let mut root_point_color = Color::RED;
+        
+        if self.parent == -1 {
+            root_point_color = Color::ORANGE;
+        }
+
+        draw_handle.draw_circle_v(self.start, 5.0, root_point_color);
+        draw_handle.draw_circle_v(self.end, 5.0, Color::RED);
     }
 }

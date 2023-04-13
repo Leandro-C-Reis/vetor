@@ -1,10 +1,9 @@
 #[allow(adts)]
 
 pub mod edge;
-
-use std::{ops::Index, cmp::Ordering, collections::HashMap};
+use std::{ops::Index, cmp::Ordering, collections::HashMap, env};
 use raylib::{RaylibHandle, prelude::{*, RaylibRenderTexture2D},texture::RenderTexture2D, RaylibThread};
-use crate::window::Tab;
+use crate::{window::Tab, log};
 use self::edge::{Edge, EdgeFormat, EdgeDrawOption};
 
 #[derive(Copy, Clone, PartialEq)]
@@ -25,7 +24,7 @@ pub struct Figure {
 
 impl Figure {
     pub fn new(tree: Vec<Edge>) -> Figure {
-        Figure {
+        let mut figure = Figure {
             tree,
             presset_root: false,
             selected: None,
@@ -33,9 +32,12 @@ impl Figure {
             draw_option: EdgeDrawOption::new(),
             tmp_edge: None,
             pressed: false
-        }
+        };
+        figure.sort();
+        figure
     }
 
+    // Update and Draw
     pub fn update(&mut self, handle: &RaylibHandle) {
         self.selected = None;
 
@@ -79,6 +81,10 @@ impl Figure {
             }
         }
 
+        for edge in self.tree.iter() {
+            edge.draw_points(draw_texture);
+        }
+
         if self.mode == FigMode::CONSTRUCTOR {
             if self.tmp_edge.is_some() {
                 self.tmp_edge.unwrap().draw(draw_texture, self.draw_option);
@@ -86,6 +92,7 @@ impl Figure {
         }
     }
 
+    // Helper functions
     fn get_children(&self, index: isize) -> Vec<usize> {
         self.tree.to_vec()
             .into_iter()
@@ -94,6 +101,7 @@ impl Figure {
                 .map(|(i, _)| i)
             .collect::<Vec<usize>>()
     }
+    
     fn sort(&mut self) {
         // Start from -1 as root parent to search.
         let indexed = self.indexed_tree(-1);
@@ -119,6 +127,12 @@ impl Figure {
             })
         .collect();
     }
+    
+    /// Recursive function that re-map and organize the tree in vector space.
+    /// * TODO: I think the children function can be optimized with something like
+    /// a Rc<RefCell<Edge>> and mantain a vector view of the edges. Will cost much time
+    /// to refactor.
+    ///
     fn indexed_tree(&self, index: isize) -> Vec<usize> {
         let mut children = self.get_children(index);
         let mut sector = children.to_vec();
@@ -131,6 +145,7 @@ impl Figure {
         sector
     }
 
+    // Controllers
     pub fn toggle_type(&mut self, index: usize) {
         match self.tree[index].format {
             EdgeFormat::CIRCLE => {
@@ -181,5 +196,52 @@ impl Figure {
                 Edge::new(edge.end, edge.end, index as isize, 1)
             );
         }
+    }
+
+    /// Delete edge on given index and update edges indexing parents
+    pub fn delete(&mut self, index: usize) {
+        println!("------ Deleting edge on index: {} ------", index);
+        let edge = self.tree[index];
+        
+        log!("Index, Parent: {} , {}", index, edge.parent);
+        log!("Children: {:?}", self.get_children(index as isize));
+
+        for child in self.get_children(index as isize) {
+            self.tree[child].parent = edge.parent;
+            
+            if edge.parent == -1 {
+                let brother = self.tree.iter().find(|e| e.parent == -1).unwrap();
+                
+                self.tree[child].start = brother.start;
+                self.tree[child].end = self.tree[child].get_real_end();
+            }
+        }
+
+        log!("Len: {}", self.tree.len());
+        log!("Tree: {:?}", self.indexed_tree(-1));
+        
+        let mut changed_indexes = HashMap::new();
+        
+        for i in index..self.tree.len() {
+            changed_indexes.insert(i, i -1);
+            
+            match changed_indexes.get(&i) {
+                Some(p) => {
+                    log!("Changed index: {} => {}", i, p);
+                    for child in self.get_children(i as isize) {
+                        self.tree[child].parent = *p as isize;
+                    }
+                }
+                _ => ()
+            }
+        }
+
+        self.tree.remove(index);
+        
+        log!("Len: {}", self.tree.len());
+        log!("Tree: {:?}", self.indexed_tree(-1));
+        log!("Changed Indexes: {:?}", changed_indexes);
+
+        println!("------ Edge {} removed ------", index);
     }
 }
