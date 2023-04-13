@@ -170,10 +170,12 @@ impl Edge {
                 let radius = self.width / 2.0;
                 let center = vector2_rotate(radius, self.start.angle_to(self.end)).add(self.end);
 
+                let thickness = 20.0;
+
                 draw_handle.draw_ring(
                     Vector2 { x: center.x, y: center.y},
-                    30.0,
-                    50.0,
+                    radius - (thickness / 2.0),
+                    radius + (thickness / 2.0),
                     0.0,
                     360.0,
                     0,
