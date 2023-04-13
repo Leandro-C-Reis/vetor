@@ -20,7 +20,7 @@ impl From<isize> for EdgeFormat {
 
 #[derive(Debug, Clone, PartialEq, Copy)]
 pub struct EdgeDrawOption {
-    point: bool,
+    pub point: bool,
 }
 
 impl EdgeDrawOption {

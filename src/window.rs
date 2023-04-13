@@ -1,8 +1,6 @@
 use std::{rc::Rc, ffi::CString, cell::RefCell, borrow::BorrowMut};
-
 use raylib::{prelude::*, ffi::CheckCollisionPointRec};
-
-use crate::{icons::VetorIcons, figure::Figure};
+use crate::{icons::VetorIcons, figure::{Figure, edge::Edge}, log};
 
 struct Button {
     pub activated: bool,
@@ -160,9 +158,54 @@ impl Window {
                 delete,
                 ..
             } => {
-                figure.update(handle);
+                if insert.activated {
+                    match figure.tmp_edge {
+                        Some(mut edge) => {
+                            edge.end = handle.get_mouse_position();
+                            edge.width = edge.start.distance_to(edge.end);
+                            edge.fixed_angle = edge.end.angle_to(edge.start);
+                            
+                            if handle.is_mouse_button_pressed(MouseButton::MOUSE_LEFT_BUTTON) {
+                                figure.insert(edge);
+                                figure.tmp_edge = None;
+                                figure.selected = None;
+                                figure.pressed = false;
+                                figure.presset_root = false;
+                                figure.draw_option.point = true;
 
-                if figure.pressed && *btn_pressed {
+                                insert.activated = false;
+                                *btn_pressed = false;
+                            } else {
+                                figure.tmp_edge = Some(edge);
+                            }
+                        },
+                        None => {
+                            if figure.pressed {
+                                let index = figure.selected.unwrap();
+                                let pressed = *figure.get(index);
+
+                                let end = if figure.presset_root {pressed.start} else {pressed.end};
+                                let parent = if figure.presset_root {pressed.parent} else {index as isize};
+
+                                figure.tmp_edge = Some(
+                                    Edge::new(end, end, parent, 1)
+                                );
+                                
+                                figure.draw_option.point = false;
+
+                                figure.presset_root = false;
+
+                                for index in figure.get_children(pressed.parent) {
+                                    let child =  figure.get_mut(index);
+                                    child.pressed_start = false;
+                                    child.pressed_end = false;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if figure.pressed {
                     if toggle_type.activated {
                         match figure.selected {
                             Some(index) => figure.toggle_type(index),
@@ -183,18 +226,6 @@ impl Window {
                         *btn_pressed = false;
                     }
 
-                    if insert.activated {
-                        match figure.selected {
-                            Some(index) => figure.insert(index),
-                            _ => ()
-                        }
-
-                        if figure.tmp_edge.is_none() {
-                            insert.activated = false;
-                            *btn_pressed = false;
-                        }
-                    }
-
                     if delete.activated {
                         match figure.selected {
                             Some(index) => figure.delete(index),
@@ -205,6 +236,8 @@ impl Window {
                         *btn_pressed = false;
                     }
                 }
+
+                figure.update(handle);
             },
             _ => ()
         }

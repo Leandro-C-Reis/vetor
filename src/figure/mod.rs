@@ -14,12 +14,12 @@ enum FigMode {
 
 pub struct Figure {
     tree: Vec<Edge>,
-    presset_root: bool,
     mode: FigMode,
-    draw_option: EdgeDrawOption,
+    pub draw_option: EdgeDrawOption,
     pub selected: Option<usize>,
     pub tmp_edge: Option<Edge>,
     pub pressed: bool,
+    pub presset_root: bool,
 }
 
 impl Figure {
@@ -41,29 +41,15 @@ impl Figure {
     pub fn update(&mut self, handle: &RaylibHandle) {
         self.selected = None;
 
-        if self.tmp_edge.is_none() {
-            for i in 0..self.tree.len() {
-                let mut edge: Edge = self.tree[i].clone();
-    
-                let pressed_before = self.pressed;
-    
-                self.tree[i] = edge.update(handle, &self.tree, &mut self.pressed, &mut self.presset_root);
-    
-                if pressed_before != self.pressed {
-                    self.selected = Some(i);
-                }
-            }
-        } else {
-            let tmp = self.tmp_edge.as_mut().unwrap();
-            tmp.end = handle.get_mouse_position();
-            tmp.width = tmp.start.distance_to(tmp.end);
-            tmp.fixed_angle = tmp.end.angle_to(tmp.start);
+        for i in 0..self.tree.len() {
+            let mut edge: Edge = self.tree[i].clone();
 
-            if handle.is_mouse_button_pressed(MouseButton::MOUSE_LEFT_BUTTON) {
-                self.tree.push(tmp.clone());
-                self.tree[tmp.parent as usize].pressed_end = false;
-                self.tmp_edge = None;
-                self.sort();
+            let pressed_before = self.pressed;
+
+            self.tree[i] = edge.update(handle, &self.tree, &mut self.pressed, &mut self.presset_root);
+
+            if pressed_before != self.pressed {
+                self.selected = Some(i);
             }
         }
     }
@@ -81,19 +67,21 @@ impl Figure {
             }
         }
 
-        for edge in self.tree.iter() {
-            edge.draw_points(draw_texture);
-        }
-
         if self.mode == FigMode::CONSTRUCTOR {
             if self.tmp_edge.is_some() {
                 self.tmp_edge.unwrap().draw(draw_texture, self.draw_option);
             }
         }
+        
+        if self.draw_option.point {
+            for edge in self.tree.iter() {
+                edge.draw_points(draw_texture);
+            }
+        }
     }
 
     // Helper functions
-    fn get_children(&self, index: isize) -> Vec<usize> {
+    pub fn get_children(&self, index: isize) -> Vec<usize> {
         self.tree.to_vec()
             .into_iter()
                 .enumerate()
@@ -145,6 +133,16 @@ impl Figure {
         sector
     }
 
+    /// Get edge at given index
+    pub fn get(&self, index: usize) -> &Edge {
+        &self.tree[index]
+    }
+
+    /// Get mutable edge at given index
+    pub fn get_mut(&mut self, index: usize) -> &mut Edge {
+        &mut self.tree[index]
+    }
+
     // Controllers
     pub fn toggle_type(&mut self, index: usize) {
         match self.tree[index].format {
@@ -188,14 +186,9 @@ impl Figure {
         }
     }
 
-    pub fn insert(&mut self, index: usize) {
-        let edge = self.tree[index];
-
-        if self.tmp_edge.is_none() {
-            self.tmp_edge = Some(
-                Edge::new(edge.end, edge.end, index as isize, 1)
-            );
-        }
+    pub fn insert(&mut self, edge: Edge) {
+        self.tree.push(edge);
+        self.sort();
     }
 
     /// Delete edge on given index and update edges indexing parents
