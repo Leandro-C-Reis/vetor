@@ -1,5 +1,5 @@
-use std::{rc::Rc, ffi::CString, cell::RefCell, borrow::BorrowMut};
-use raylib::{prelude::*, ffi::CheckCollisionPointRec};
+use std::{rc::Rc, ffi::CString, cell::RefCell, fs, path::Path};
+use raylib::{prelude::*, ffi::{CheckCollisionPointRec}};
 use crate::{icons::VetorIcons, figure::{Figure, edge::Edge}, log};
 
 struct Button {
@@ -275,6 +275,28 @@ impl Window {
                     Vector2::new(0.0, 0.0),
                     Color::RAYWHITE.fade(1.0)
                 );
+
+                /// Take screenshoot when press 'F'
+                /// TODO: This must be moved latter
+                if handle.is_key_pressed(KeyboardKey::KEY_F) {
+                    let dir = "./tests/generated";
+                    let mut filename = format!("{}/screenshot_{}.png", dir, "0");
+
+                    if Path::new(dir).is_dir() {
+                        let count = fs::read_dir(dir)
+                            .unwrap()
+                            .map(|f| f.unwrap().path())
+                            .filter(|p| p.to_str().unwrap().starts_with(&format!("{}/{}", dir, "screenshot_")))
+                            .count();
+                        filename = format!("{}/screenshot_{}.png", dir, count);
+                    } else {
+                        fs::create_dir_all(dir).unwrap();
+                    }
+
+                    let mut image = framebuffer.texture().get_texture_data().unwrap();
+                    image.flip_vertical();
+                    image.export_image(filename.as_str());
+                }
                 // ===== END Drawing figure =====
                 // ===== Drawing sidebar edit menu =====
 

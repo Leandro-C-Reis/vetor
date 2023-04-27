@@ -6,6 +6,7 @@ mod figure;
 mod imports;
 mod maths;
 mod util;
+mod framerate;
 
 use raylib::prelude::*;
 use raylib::ffi::GuiLoadIcons;
