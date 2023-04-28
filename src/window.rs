@@ -1,6 +1,6 @@
 use std::{rc::Rc, ffi::CString, cell::RefCell, fs, path::Path};
 use raylib::{prelude::*, ffi::{CheckCollisionPointRec}};
-use crate::{icons::VetorIcons, figure::{Figure, edge::Edge}, log, maths::vector2_rotate};
+use crate::{icons::VetorIcons, figure::{Figure, edge::{Edge, EdgeFormat}}, log, maths::vector2_rotate};
 use crate::maths::*;
 
 struct Button {
@@ -159,14 +159,16 @@ impl Window {
                 delete,
                 copy,
                 format,
+                circle,
                 ..
             } => {
-                if insert.activated {
+                if insert.activated || circle.activated {
                     match figure.tmp_edge {
                         Some(mut edge) => {
                             edge.end = handle.get_mouse_position();
                             edge.width = edge.start.distance_to(edge.end);
                             edge.fixed_angle = edge.end.angle_to(edge.start);
+                            edge.format = if circle.activated { EdgeFormat::CIRCLE } else { EdgeFormat::LINE };
                             
                             if handle.is_mouse_button_pressed(MouseButton::MOUSE_LEFT_BUTTON) {
                                 figure.insert(edge);
@@ -178,6 +180,7 @@ impl Window {
                                 figure.should_update = true;
 
                                 insert.activated = false;
+                                circle.activated = false;
                                 *btn_pressed = false;
                             } else {
                                 figure.tmp_edge = Some(edge);
