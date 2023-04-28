@@ -67,6 +67,10 @@ impl Edge {
         vector2_rotate(self.width, self.fixed_angle).add(self.start)
     }
 
+    pub fn update_angle(&mut self) {
+        self.fixed_angle = self.end.angle_to(self.start);
+    }
+
     pub fn update(&mut self, handle: &RaylibHandle, line_tree: &Vec<Edge>, point_pressed: &mut bool, pressed_root: &mut bool) -> Edge {
         let mouse_pos = handle.get_mouse_position();
         self.moved = false;
@@ -87,6 +91,7 @@ impl Edge {
         }
 
         if handle.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
+            // For each non root edges
             if self.parent >= 0 {
                 let parent = &line_tree[self.parent as usize];
 
@@ -106,7 +111,8 @@ impl Edge {
                 self.end = vector2_rotate(self.width, angle).add(self.start);
             }
 
-            if self.pressed_start && self.parent < 0 {
+            // Only root edges
+            if self.parent < 0 && self.pressed_start {
                 let angle = self.end.angle_to(self.start);
                 self.start = mouse_pos;
                 self.end = vector2_rotate(self.width, angle).add(self.start);

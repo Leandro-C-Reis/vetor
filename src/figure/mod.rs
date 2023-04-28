@@ -15,6 +15,7 @@ enum FigMode {
 pub struct Figure {
     tree: Vec<Edge>,
     mode: FigMode,
+    pub should_update: bool,
     pub draw_option: EdgeDrawOption,
     pub selected: Option<usize>,
     pub tmp_edge: Option<Edge>,
@@ -31,25 +32,28 @@ impl Figure {
             mode: FigMode::CONSTRUCTOR,
             draw_option: EdgeDrawOption::new(),
             tmp_edge: None,
-            pressed: false
+            pressed: false,
+            should_update: true,
         };
         figure.sort();
         figure
     }
 
-    // Update and Draw
+    // 1. === Update and Draw ===
     pub fn update(&mut self, handle: &RaylibHandle) {
         self.selected = None;
 
-        for i in 0..self.tree.len() {
-            let mut edge: Edge = self.tree[i].clone();
-
-            let pressed_before = self.pressed;
-
-            self.tree[i] = edge.update(handle, &self.tree, &mut self.pressed, &mut self.presset_root);
-
-            if pressed_before != self.pressed {
-                self.selected = Some(i);
+        if self.should_update {
+            for i in 0..self.tree.len() {
+                let mut edge: Edge = self.tree[i].clone();
+    
+                let pressed_before = self.pressed;
+    
+                self.tree[i] = edge.update(handle, &self.tree, &mut self.pressed, &mut self.presset_root);
+    
+                if pressed_before != self.pressed {
+                    self.selected = Some(i);
+                }
             }
         }
     }
@@ -80,7 +84,7 @@ impl Figure {
         }
     }
 
-    // Helper functions
+    // 2. === Helper functions ===
     pub fn get_children(&self, index: isize) -> Vec<usize> {
         self.tree.to_vec()
             .into_iter()
@@ -143,7 +147,33 @@ impl Figure {
         &mut self.tree[index]
     }
 
-    // Controllers
+    /// Unselect parent and children edges
+    pub fn clear_edge_and_children(&mut self, index: usize) {
+        let parent = self.get(index).parent;
+        self.get_mut(index).pressed_start = false;
+        self.get_mut(index).pressed_end = false;
+        self.get_mut(index).moved_angle = 0.0;
+
+        for index in self.get_children(parent) {
+            let child =  self.get_mut(index);
+            child.pressed_start = false;
+            child.pressed_end = false;
+        }
+    }
+
+    /// Copy edge to temporary space
+    pub fn copy_tmp(&mut self, index: usize) {
+        let mut edge = self.tree[index];
+        let start = edge.start;
+        edge.start = edge.end;
+        edge.end = start;
+        edge.update_angle();
+        edge.moved_angle = 0.0;
+
+        self.tmp_edge = Some(edge);
+    }
+
+    // 3. === Controllers === 
     pub fn toggle_type(&mut self, index: usize) {
         match self.tree[index].format {
             EdgeFormat::CIRCLE => {

@@ -1,6 +1,7 @@
 use std::{rc::Rc, ffi::CString, cell::RefCell, fs, path::Path};
 use raylib::{prelude::*, ffi::{CheckCollisionPointRec}};
-use crate::{icons::VetorIcons, figure::{Figure, edge::Edge}, log};
+use crate::{icons::VetorIcons, figure::{Figure, edge::Edge}, log, maths::vector2_rotate};
+use crate::maths::*;
 
 struct Button {
     pub activated: bool,
@@ -156,6 +157,7 @@ impl Window {
                 divide,
                 insert,
                 delete,
+                copy,
                 ..
             } => {
                 if insert.activated {
@@ -172,6 +174,7 @@ impl Window {
                                 figure.pressed = false;
                                 figure.presset_root = false;
                                 figure.draw_option.point = true;
+                                figure.should_update = true;
 
                                 insert.activated = false;
                                 *btn_pressed = false;
@@ -192,14 +195,63 @@ impl Window {
                                 );
                                 
                                 figure.draw_option.point = false;
-
                                 figure.presset_root = false;
+                                figure.should_update = false;
 
                                 for index in figure.get_children(pressed.parent) {
                                     let child =  figure.get_mut(index);
                                     child.pressed_start = false;
                                     child.pressed_end = false;
                                 }
+                            }
+                        }
+                    }
+                }
+
+                if copy.activated {
+                    match figure.tmp_edge {
+                        Some(mut edge) => {
+                            // Edge will move with mouse before insert
+                            edge.start = handle.get_mouse_position();
+                            edge.end = vector2_rotate(edge.width, edge.fixed_angle).add(edge.start);
+                            edge.update_angle();
+                            edge.moved_angle = 0.0;
+                            edge.pressed_start = false;
+                            edge.pressed_end = false;
+                            
+                            if !figure.should_update && handle.is_mouse_button_up(MouseButton::MOUSE_LEFT_BUTTON) {
+                                figure.should_update = true;
+                            }
+
+                            if figure.pressed {
+                                let index = figure.selected.unwrap();
+
+                                edge.parent = index as isize;
+                                figure.insert(edge);
+                                figure.tmp_edge = None;
+                                figure.selected = None;
+                                figure.pressed = false;
+                                figure.presset_root = false;
+                                figure.draw_option.point = true;
+                                figure.should_update = true;
+                                figure.clear_edge_and_children(index);
+
+                                copy.activated = false;
+                                *btn_pressed = false;
+                            } else {
+                                figure.tmp_edge = Some(edge);
+                            }
+                        },
+                        None => {
+                            if figure.pressed {
+                                let index = figure.selected.unwrap();
+                                
+                                figure.copy_tmp(index);
+                                figure.selected = None;
+                                figure.pressed = false;
+                                figure.presset_root = false;
+                                figure.should_update = false;
+                                figure.clear_edge_and_children(index);
                             }
                         }
                     }
@@ -238,6 +290,14 @@ impl Window {
                 }
 
                 figure.update(handle);
+
+                if !figure.pressed && handle.is_mouse_button_pressed(MouseButton::MOUSE_LEFT_BUTTON) {
+                    figure.should_update = false;
+                }
+                
+                if !figure.pressed && handle.is_mouse_button_up(MouseButton::MOUSE_LEFT_BUTTON) {
+                    figure.should_update = true;
+                }
             },
             _ => ()
         }
