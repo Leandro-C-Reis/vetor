@@ -43,6 +43,7 @@ pub struct Edge {
     pub moved_angle: f32,
     pub parent: isize,
     pub format: EdgeFormat,
+    pub border: bool,
 }
 
 impl Edge {
@@ -58,6 +59,7 @@ impl Edge {
             moved_angle: 0.0,
             fixed_angle: end.angle_to(start),
             width: start.distance_to(end),
+            border: false,
         }
     }
 
@@ -161,16 +163,23 @@ impl Edge {
                 let rotation = radian * 180.0 / PI as f32;
                 let distance = self.start.distance_to(self.end);
         
-                let rect = Rectangle {
+                let mut rect = Rectangle {
                     x: self.start.x as f32,
                     y: self.start.y as f32,
                     width: distance,
                     height: 20.0,
                 };
-        
-                draw_handle.draw_rectangle_pro(rect, Vector2 { x:0 as f32, y: 10 as f32 }, rotation, Color::BLACK);
-                draw_handle.draw_circle_v(self.start, 10.0, Color::BLACK);
-                draw_handle.draw_circle_v(self.end, 10.0, Color::BLACK);
+                
+                if self.border {
+                    // Draw flat border
+                    rect.width += 20.0;
+                    draw_handle.draw_rectangle_pro(rect, Vector2 { x:10 as f32, y: 10 as f32 }, rotation, Color::BLACK);    
+                } else {
+                    // Draw rounded border
+                    draw_handle.draw_rectangle_pro(rect, Vector2 { x:0 as f32, y: 10 as f32 }, rotation, Color::BLACK);
+                    draw_handle.draw_circle_v(self.start, 10.0, Color::BLACK);
+                    draw_handle.draw_circle_v(self.end, 10.0, Color::BLACK);
+                }
             },
             EdgeFormat::CIRCLE => {
                 let radius = self.width / 2.0;

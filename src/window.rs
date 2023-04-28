@@ -158,6 +158,7 @@ impl Window {
                 insert,
                 delete,
                 copy,
+                format,
                 ..
             } => {
                 if insert.activated {
@@ -285,6 +286,16 @@ impl Window {
                         }
 
                         delete.activated = false;
+                        *btn_pressed = false;
+                    }
+
+                    if format.activated {
+                        match figure.selected {
+                            Some(index) => figure.toggle_edge_border(index),
+                            _ => ()
+                        }
+
+                        format.activated = false;
                         *btn_pressed = false;
                     }
                 }
