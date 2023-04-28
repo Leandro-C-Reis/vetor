@@ -267,9 +267,4 @@ impl Figure {
 
         println!("------ Edge {} removed ------", index);
     }
-
-    pub fn toggle_edge_border(&mut self, index: usize) {
-        let edge = self.get_mut(index);
-        edge.border = !edge.border;
-    }
 }

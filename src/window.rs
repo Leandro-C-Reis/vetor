@@ -1,6 +1,6 @@
 use std::{rc::Rc, ffi::CString, cell::RefCell, fs, path::Path};
 use raylib::{prelude::*, ffi::{CheckCollisionPointRec}};
-use crate::{icons::VetorIcons, figure::{Figure, edge::{Edge, EdgeFormat}}, log, maths::vector2_rotate};
+use crate::{icons::VetorIcons, figure::{Figure, edge::{Edge, EdgeFormat, EdgeDrawMode}}, log, maths::vector2_rotate};
 use crate::maths::*;
 
 struct Button {
@@ -160,6 +160,7 @@ impl Window {
                 copy,
                 format,
                 circle,
+                circle_fill,
                 ..
             } => {
                 if insert.activated || circle.activated {
@@ -294,11 +295,39 @@ impl Window {
 
                     if format.activated {
                         match figure.selected {
-                            Some(index) => figure.toggle_edge_border(index),
+                            Some(index) => {
+                                let edge = figure.get_mut(index);
+                                
+                                if edge.format == EdgeFormat::LINE {
+                                    edge.draw_mode = if edge.draw_mode == EdgeDrawMode::DEFAULT {EdgeDrawMode::LINE_BORDER_FLAT} else {EdgeDrawMode::DEFAULT};
+                                }
+                            },
                             _ => ()
                         }
 
                         format.activated = false;
+                        *btn_pressed = false;
+                    }
+                    
+                    if circle_fill.activated {
+                        match figure.selected {
+                            Some(index) => {
+                                let edge = figure.get_mut(index);
+                                
+                                if edge.format == EdgeFormat::CIRCLE {
+                                    edge.draw_mode = if edge.draw_mode == EdgeDrawMode::DEFAULT {
+                                        EdgeDrawMode::CIRCLE_CLEAN
+                                    } else if edge.draw_mode == EdgeDrawMode::CIRCLE_CLEAN {
+                                        EdgeDrawMode::CIRCLE_FULL
+                                    } else {
+                                        EdgeDrawMode::DEFAULT
+                                    }
+                                }
+                            },
+                            _ => ()
+                        }
+
+                        circle_fill.activated = false;
                         *btn_pressed = false;
                     }
                 }

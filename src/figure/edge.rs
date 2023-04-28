@@ -32,6 +32,14 @@ impl EdgeDrawOption {
 }
 
 #[derive(Debug, Clone, PartialEq, Copy)]
+pub enum EdgeDrawMode {
+    DEFAULT = 1,
+    LINE_BORDER_FLAT = 2,
+    CIRCLE_FULL = 3,
+    CIRCLE_CLEAN = 4
+}
+
+#[derive(Debug, Clone, PartialEq, Copy)]
 pub struct Edge {
     pub start: Vector2,
     pub end: Vector2,
@@ -43,7 +51,7 @@ pub struct Edge {
     pub moved_angle: f32,
     pub parent: isize,
     pub format: EdgeFormat,
-    pub border: bool,
+    pub draw_mode: EdgeDrawMode,
 }
 
 impl Edge {
@@ -59,7 +67,7 @@ impl Edge {
             moved_angle: 0.0,
             fixed_angle: end.angle_to(start),
             width: start.distance_to(end),
-            border: false,
+            draw_mode: EdgeDrawMode::DEFAULT,
         }
     }
 
@@ -170,7 +178,7 @@ impl Edge {
                     height: 20.0,
                 };
                 
-                if self.border {
+                if self.draw_mode == EdgeDrawMode::LINE_BORDER_FLAT {
                     // Draw flat border
                     rect.width += 20.0;
                     draw_handle.draw_rectangle_pro(rect, Vector2 { x:10 as f32, y: 10 as f32 }, rotation, Color::BLACK);    
@@ -188,7 +196,7 @@ impl Edge {
                 let thickness = 20.0;
 
                 draw_handle.draw_ring(
-                    Vector2 { x: center.x, y: center.y},
+                    center,
                     radius - (thickness / 2.0),
                     radius + (thickness / 2.0),
                     0.0,
@@ -196,6 +204,22 @@ impl Edge {
                     0,
                     Color::BLACK
                 );
+
+                if self.draw_mode == EdgeDrawMode::CIRCLE_CLEAN {
+                    draw_handle.draw_circle(
+                        center.x as i32,
+                        center.y as i32,
+                        radius - (thickness / 2.0),
+                        Color::RAYWHITE
+                    );
+                } else if self.draw_mode == EdgeDrawMode::CIRCLE_FULL {
+                    draw_handle.draw_circle(
+                        center.x as i32,
+                        center.y as i32,
+                        radius - (thickness / 2.0),
+                        Color::BLACK
+                    );
+                }
             }
         }
     }
