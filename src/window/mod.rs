@@ -8,6 +8,7 @@ use self::edit::*;
 use self::tab::Tab;
 use self::util::button::*;
 use crate::imports;
+use crate::styles::*;
 use crate::{cstr, maths::*};
 use crate::{
     figure::{
@@ -125,20 +126,14 @@ impl Window {
         }
 
         // Draw tab menu
-        handle.draw_rectangle(0, 0, handle.get_screen_width(), 30, Color::LIGHTGRAY);
+        handle.draw_rectangle(
+            0,
+            0,
+            handle.get_screen_width(),
+            30,
+            Color::from(ColorStyle::BASE_COLOR_FOCUSED),
+        );
         for (i, tab) in self.tabs.iter().enumerate() {
-            // Remove border and Align label text to center
-            handle.gui_set_style(
-                GuiControl::BUTTON,
-                GuiControlProperty::BORDER_WIDTH as i32,
-                0,
-            );
-            handle.gui_set_style(
-                GuiControl::LABEL,
-                GuiControlProperty::TEXT_ALIGNMENT as i32,
-                GuiTextAlignment::GUI_TEXT_ALIGN_CENTER as i32,
-            );
-
             let text = match &*tab.borrow() {
                 Tab::Edit { .. } => "Editar",
                 Tab::Animation { .. } => "Animar",
@@ -148,16 +143,39 @@ impl Window {
             let width = 100.0;
             let x = width * i as f32;
 
-            // Check if tab is the current selected.
-            if tab.as_ptr() == self.selected_tab.as_ptr() {
-                // Color = #5bb2d9
-                handle.draw_rectangle(x as i32, 0, width as i32, 30, Color::new(91, 178, 217, 255));
-            }
+            let is_selected = tab.as_ptr() == self.selected_tab.as_ptr();
 
-            handle.draw_rectangle_lines(x as i32, 0, width as i32, 30, Color::GRAY);
-            handle.gui_label_button(
-                rrect(x, 0.0, width, 30.0),
-                Some(&CString::new(text).unwrap()),
+            handle.gui_set_style(
+                GuiControl::TOGGLE,
+                GuiControlProperty::TEXT_ALIGNMENT as i32,
+                GuiTextAlignment::GUI_TEXT_ALIGN_LEFT as i32,
+            );
+            handle.gui_set_style(
+                GuiControl::TOGGLE,
+                GuiControlProperty::BORDER_WIDTH as i32,
+                1,
+            );
+            handle.gui_set_style(
+                GuiControl::TOGGLE,
+                GuiControlProperty::TEXT_PADDING as i32,
+                10,
+            );
+            handle.gui_toggle(rrect(x, 0.0, width, 30.0), Some(&cstr!(text)), is_selected);
+
+            handle.gui_set_style(
+                GuiControl::BUTTON,
+                GuiControlProperty::TEXT_ALIGNMENT as i32,
+                GuiTextAlignment::GUI_TEXT_ALIGN_CENTER as i32,
+            );
+            handle.gui_set_style(
+                GuiControl::BUTTON,
+                GuiControlProperty::TEXT_PADDING as i32,
+                0,
+            );
+            handle.gui_set_style(
+                GuiControl::BUTTON,
+                GuiControlProperty::BORDER_WIDTH as i32,
+                1,
             );
             handle.gui_button(rrect(x + 75.0, 5.0, 20.0, 20.0), Some(&icon));
         }

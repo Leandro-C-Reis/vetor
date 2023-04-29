@@ -5,6 +5,7 @@ mod framerate;
 mod icons;
 mod imports;
 mod maths;
+mod styles;
 mod util;
 mod window;
 

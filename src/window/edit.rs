@@ -3,6 +3,7 @@ use crate::{
     figure::{edge::*, *},
     icons::VetorIcons,
     maths::*,
+    styles::ColorStyle,
 };
 use raylib::{prelude::*, texture::RenderTexture2D};
 use std::{fs, path::Path};
@@ -303,12 +304,13 @@ impl Edit {
         // ===== END Drawing figure =====
         // ===== Drawing sidebar edit menu =====
 
+        // Draw sidebar background
         handle.draw_rectangle(
             self.start.x as i32,
             self.start.y as i32,
             self.sidebar_width as i32,
             height,
-            Color::DARKGRAY,
+            Color::from(ColorStyle::BASE_COLOR_NORMAL),
         );
 
         if self.circle.icon.is_none() {
@@ -344,16 +346,6 @@ impl Edit {
             self.format.set_icon(handle, VetorIcons::ICON_VERTEX_FORMAT)
         }
 
-        fn draw_rec(handle: &mut RaylibDrawHandle, rec: Rectangle) {
-            handle.draw_rectangle(
-                rec.x as i32,
-                rec.y as i32,
-                rec.width as i32,
-                rec.height as i32,
-                Color::new(91, 178, 217, 120),
-            );
-        }
-
         for btn in [
             &mut self.circle,
             &mut self.insert,
@@ -372,25 +364,20 @@ impl Edit {
                 GuiTextAlignment::GUI_TEXT_ALIGN_CENTER as i32,
             );
 
-            let btn_press = handle.gui_button(
+            let btn_press = handle.gui_toggle(
                 rrect(btn.start.x, btn.start.y, btn.len, btn.len),
                 Some(&btn.icon.clone().unwrap()),
+                btn.activated,
             );
-
-            let must_toggle = btn_press && self.btn_pressed && btn.activated;
 
             if btn_press && !self.btn_pressed {
                 self.btn_pressed = true;
                 btn.activated = true;
             }
 
-            if must_toggle {
+            if !btn_press && self.btn_pressed && btn.activated {
                 btn.activated = false;
-                self.btn_pressed = false
-            }
-
-            if btn.activated {
-                draw_rec(handle, rrect(btn.start.x, btn.start.y, btn.len, btn.len));
+                self.btn_pressed = false;
             }
         }
         // ===== END Drawing sidebar edit menu =====
