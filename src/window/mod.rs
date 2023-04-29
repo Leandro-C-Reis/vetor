@@ -45,13 +45,28 @@ impl Window {
             .ok()
             .unwrap();
 
-        let edit_tab = Rc::new(RefCell::new(Tab::Edit(Edit::new(figure, texture))));
+        let edit_tab = Rc::new(RefCell::new(Tab::Edit(Edit::new(figure.clone(), texture))));
+        let animation_tab = Rc::new(RefCell::new(Tab::Animation(Animation::new(
+            handle
+                .load_render_texture(
+                    &thread,
+                    handle.get_screen_width() as u32,
+                    handle.get_screen_height() as u32,
+                )
+                .ok()
+                .unwrap(),
+        ))));
+
+        match &mut *animation_tab.borrow_mut() {
+            Tab::Animation(page) => {
+                page.push_figure(figure.clone());
+                page.push_figure(figure.clone());
+            }
+            _ => (),
+        }
 
         Window {
-            tabs: vec![
-                edit_tab.clone(),
-                Rc::new(RefCell::new(Tab::Animation(Animation))),
-            ],
+            tabs: vec![edit_tab.clone(), animation_tab.clone()],
             selected_tab: edit_tab,
         }
     }
@@ -92,7 +107,9 @@ impl Window {
             Tab::Edit(page) => {
                 page.update(handle);
             }
-            _ => (),
+            Tab::Animation(page) => {
+                page.update(handle);
+            }
         }
     }
 
@@ -102,7 +119,9 @@ impl Window {
             Tab::Edit(page) => {
                 page.draw(handle, thread);
             }
-            _ => (),
+            Tab::Animation(page) => {
+                page.draw(handle, thread);
+            }
         }
 
         // Draw tab menu

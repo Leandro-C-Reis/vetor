@@ -18,5 +18,5 @@ macro_rules! log {
 macro_rules! cstr {
     ($e:expr) => {
         CString::new($e).unwrap()
-    }
+    };
 }

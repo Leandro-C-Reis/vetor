@@ -9,12 +9,13 @@ use raylib::{
 };
 use std::{cmp::Ordering, collections::HashMap, env, ops::Index};
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 enum FigMode {
     CONSTRUCTOR = 1,
     ANIMATION = 2,
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct Figure {
     tree: Vec<Edge>,
     mode: FigMode,
@@ -181,6 +182,30 @@ impl Figure {
         edge.moved_angle = 0.0;
 
         self.tmp_edge = Some(edge);
+    }
+
+    /// Check difference between figures and return a HashMap with
+    /// changed edges position.
+    pub fn diff(&mut self, figure: Figure) -> Result<HashMap<usize, (Vector2, Vector2)>, &str> {
+        let mut compare_map = HashMap::new();
+
+        if self.tree.len() != figure.tree.len() {
+            return Err("Figures have different length");
+        }
+
+        for (index, edge) in self.tree.iter().enumerate() {
+            let fedge = figure.tree[index];
+
+            if edge.parent != fedge.parent {
+                return Err("Figure tree is not the same distribution");
+            }
+
+            if edge.start != fedge.start || edge.end != fedge.end {
+                compare_map.insert(index, (fedge.start, fedge.end));
+            }
+        }
+
+        Ok(compare_map)
     }
 
     // 3. === Controllers ===
