@@ -1,4 +1,4 @@
-use crate::figure::Figure;
+use crate::{figure::Figure, styles::ColorStyle};
 use raylib::prelude::*;
 use std::collections::HashMap;
 
@@ -46,22 +46,43 @@ impl Frame {
 }
 
 pub struct Animation {
+    start: Vector2,
     figures: Vec<Figure>,
     frames: Vec<Frame>,
     selected_frame: usize,
-    framebuffer: RenderTexture2D,
+    main_texture: RenderTexture2D,
+    frame_texture: RenderTexture2D,
 }
 
 impl Animation {
-    pub fn new(framebuffer: RenderTexture2D) -> Animation {
+    pub fn new(handle: &mut RaylibHandle, thread: &RaylibThread) -> Animation {
+        let start = Vector2::new(0.0, 30.0);
         let mut first_frame = Frame::new();
         first_frame.is_selected = true;
+
+        let main_texture = handle
+            .load_render_texture(
+                &thread,
+                handle.get_screen_width() as u32,
+                handle.get_screen_height() as u32,
+            )
+            .ok()
+            .unwrap();
+
+        let width = handle.get_screen_width() - 80;
+        let height = 110;
+        let frame_texture = handle
+            .load_render_texture(&thread, width as u32, height as u32)
+            .ok()
+            .unwrap();
 
         Animation {
             figures: vec![],
             frames: vec![first_frame],
             selected_frame: 0,
-            framebuffer,
+            main_texture,
+            frame_texture,
+            start,
         }
     }
 
@@ -100,8 +121,9 @@ impl Animation {
     pub fn draw(&mut self, handle: &mut RaylibDrawHandle, thread: &RaylibThread) {
         let mut frame = &mut self.frames[self.selected_frame];
 
+        // Draw figures on texture
         {
-            let mut draw_texture = handle.begin_texture_mode(thread, &mut self.framebuffer);
+            let mut draw_texture = handle.begin_texture_mode(thread, &mut self.main_texture);
 
             for animation in &mut frame.figure_animation {
                 if animation.figure.is_some() {
@@ -110,15 +132,78 @@ impl Animation {
             }
         }
 
+        // Draw main screen texture
         handle.draw_texture_rec(
-            self.framebuffer.texture(),
+            self.main_texture.texture(),
             rrect(
-                0,
-                0,
-                self.framebuffer.texture.width,
-                -self.framebuffer.texture.height,
+                0.0,
+                0.0,
+                self.main_texture.texture.width,
+                -self.main_texture.texture.height,
             ),
             Vector2::new(0.0, 0.0),
+            Color::RAYWHITE.fade(1.0),
+        );
+
+        let sidebar_width = 80.0;
+
+        // Draw sidebar
+        {
+            // Background
+            handle.draw_rectangle(
+                self.start.x as i32,
+                self.start.y as i32,
+                sidebar_width as i32,
+                handle.get_screen_height() - self.start.y as i32,
+                Color::from(ColorStyle::BASE_COLOR_NORMAL),
+            );
+        }
+
+        let width = self.frame_texture.width();
+        let height = self.frame_texture.height();
+        let x = (self.start.x + sidebar_width) as i32;
+        let y = handle.get_screen_height() - height;
+
+        // Draw animation frames
+        {
+            let mut draw_texture = handle.begin_texture_mode(thread, &mut self.frame_texture);
+
+            // Background
+            draw_texture.draw_rectangle(
+                0,
+                0,
+                width,
+                height,
+                Color::from(ColorStyle::BASE_COLOR_FOCUSED),
+            );
+
+            let frame_width = 150;
+            let frame_gap = 10;
+            let scrollbar_height = 10;
+            for i in 0..5 {
+                // We dont need to render frames out of screen
+                if i * frame_width + i * frame_gap > width {
+                    break;
+                };
+
+                // Draw frame
+                draw_texture.draw_rectangle_lines(
+                    i * frame_width + i * frame_gap,
+                    scrollbar_height,
+                    frame_width,
+                    height - scrollbar_height,
+                    Color::BLACK,
+                );
+            }
+
+            // Draw scrollbar
+            draw_texture.draw_rectangle(0, 0, width, scrollbar_height, Color::RAYWHITE);
+        }
+        // Draw frame animation texture
+        handle.draw_texture(
+            self.frame_texture.texture(),
+            x,
+            y,
             Color::RAYWHITE.fade(1.0),
         );
     }

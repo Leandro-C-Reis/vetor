@@ -1,4 +1,3 @@
-#[allow(adts)]
 pub mod edge;
 use self::edge::{Edge, EdgeDrawOption, EdgeFormat};
 use crate::{log, window};

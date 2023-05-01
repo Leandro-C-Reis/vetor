@@ -47,16 +47,7 @@ impl Window {
             .unwrap();
 
         let edit_tab = Rc::new(RefCell::new(Tab::Edit(Edit::new(figure.clone(), texture))));
-        let animation_tab = Rc::new(RefCell::new(Tab::Animation(Animation::new(
-            handle
-                .load_render_texture(
-                    &thread,
-                    handle.get_screen_width() as u32,
-                    handle.get_screen_height() as u32,
-                )
-                .ok()
-                .unwrap(),
-        ))));
+        let animation_tab = Rc::new(RefCell::new(Tab::Animation(Animation::new(handle, thread))));
 
         match &mut *animation_tab.borrow_mut() {
             Tab::Animation(page) => {
@@ -68,7 +59,7 @@ impl Window {
 
         Window {
             tabs: vec![edit_tab.clone(), animation_tab.clone()],
-            selected_tab: edit_tab,
+            selected_tab: animation_tab,
         }
     }
 
