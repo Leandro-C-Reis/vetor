@@ -51,7 +51,7 @@ pub struct Animation {
     frames: Vec<Frame>,
     selected_frame: usize,
     main_texture: RenderTexture2D,
-    frame_texture: RenderTexture2D,
+    frame_scroll: f32,
 }
 
 impl Animation {
@@ -69,19 +69,12 @@ impl Animation {
             .ok()
             .unwrap();
 
-        let width = handle.get_screen_width() - 80;
-        let height = 110;
-        let frame_texture = handle
-            .load_render_texture(&thread, width as u32, height as u32)
-            .ok()
-            .unwrap();
-
         Animation {
             figures: vec![],
             frames: vec![first_frame],
             selected_frame: 0,
+            frame_scroll: 0.0,
             main_texture,
-            frame_texture,
             start,
         }
     }
@@ -113,7 +106,7 @@ impl Animation {
             }
         }
 
-        if handle.is_mouse_button_up(MouseButton::MOUSE_LEFT_BUTTON) {
+        if handle.is_mouse_button_up(MouseButton::MOUSE_BUTTON_LEFT) {
             frame.enable_all();
         }
     }
@@ -159,53 +152,104 @@ impl Animation {
             );
         }
 
-        let width = self.frame_texture.width();
-        let height = self.frame_texture.height();
-        let x = (self.start.x + sidebar_width) as i32;
-        let y = handle.get_screen_height() - height;
-
         // Draw animation frames
         {
-            let mut draw_texture = handle.begin_texture_mode(thread, &mut self.frame_texture);
+            let width = handle.get_screen_width() - 80;
+            let height = 115;
+            let x = (self.start.x + sidebar_width) as i32;
+            let y = handle.get_screen_height() - height;
+            let frame_count = 15;
+            let frame_width = 150;
+            let frame_gap = 10;
+            let scrollbar_height = 15;
+            let panel_content = rrect(x, y, width, height);
+
+            // Avoid render out of scissor area
+            let mut scissor = handle.begin_scissor_mode(
+                panel_content.x as i32,
+                panel_content.y as i32,
+                panel_content.width as i32,
+                panel_content.height as i32,
+            );
 
             // Background
-            draw_texture.draw_rectangle(
-                0,
-                0,
-                width,
-                height,
+            scissor.draw_rectangle(
+                panel_content.x as i32,
+                panel_content.y as i32,
+                panel_content.width as i32,
+                panel_content.height as i32,
                 Color::from(ColorStyle::BASE_COLOR_FOCUSED),
             );
 
-            let frame_width = 150;
-            let frame_gap = 10;
-            let scrollbar_height = 10;
-            for i in 0..5 {
+            // Draw frames
+            for i in 0..frame_count {
+                let moved_content = i * frame_width + i * frame_gap - self.frame_scroll as i32;
+
                 // We dont need to render frames out of screen
-                if i * frame_width + i * frame_gap > width {
+                if moved_content < 0 - frame_width {
+                    continue;
+                } else if moved_content >= width {
                     break;
                 };
 
                 // Draw frame
-                draw_texture.draw_rectangle_lines(
-                    i * frame_width + i * frame_gap,
-                    scrollbar_height,
+                scissor.draw_rectangle_lines(
+                    x + moved_content,
+                    y,
                     frame_width,
                     height - scrollbar_height,
                     Color::BLACK,
                 );
+                scissor.draw_text(
+                    &format!("{}", i + 1),
+                    x + moved_content + (frame_width / 2),
+                    y + (height / 2) - 12,
+                    24,
+                    Color::BLACK,
+                );
             }
 
-            // Draw scrollbar
-            draw_texture.draw_rectangle(0, 0, width, scrollbar_height, Color::RAYWHITE);
+            // NOTE: Maybe the slider width will be change dynamically
+            scissor.gui_set_style(
+                GuiControl::SLIDER,
+                GuiSliderProperty::SLIDER_WIDTH as i32,
+                300,
+            );
+
+            let max_value = (frame_width * frame_count) as f32
+                + (frame_gap * (frame_count - 1)) as f32
+                - width as f32;
+
+            // Fit frame scroll at mouse scrolling
+            if panel_content.check_collision_point_rec(scissor.get_mouse_position()) {
+                self.frame_scroll = if scissor.get_mouse_wheel_move() != 0.0 {
+                    let mut next_move = self.frame_scroll + scissor.get_mouse_wheel_move() * -150.0;
+                    if next_move < 0.0 {
+                        next_move = 0.0;
+                    } else if next_move > max_value + frame_width as f32 {
+                        next_move = max_value;
+                    }
+
+                    next_move
+                } else {
+                    self.frame_scroll
+                };
+            }
+
+            self.frame_scroll = scissor.gui_slider(
+                rrect(
+                    x,
+                    scissor.get_screen_height() - scrollbar_height,
+                    width,
+                    scrollbar_height,
+                ),
+                None,
+                None,
+                self.frame_scroll,
+                0.0,
+                max_value,
+            )
         }
-        // Draw frame animation texture
-        handle.draw_texture(
-            self.frame_texture.texture(),
-            x,
-            y,
-            Color::RAYWHITE.fade(1.0),
-        );
     }
 
     pub fn push_figure(&mut self, figure: Figure) {

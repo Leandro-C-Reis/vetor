@@ -74,7 +74,7 @@ impl Edit {
                         EdgeFormat::LINE
                     };
 
-                    if handle.is_mouse_button_pressed(MouseButton::MOUSE_LEFT_BUTTON) {
+                    if handle.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT) {
                         self.figure.insert(edge);
                         self.figure.tmp_edge = None;
                         self.figure.selected = None;
@@ -133,7 +133,7 @@ impl Edit {
                     edge.pressed_end = false;
 
                     if !self.figure.should_update
-                        && handle.is_mouse_button_up(MouseButton::MOUSE_LEFT_BUTTON)
+                        && handle.is_mouse_button_up(MouseButton::MOUSE_BUTTON_LEFT)
                     {
                         self.figure.should_update = true;
                     }
@@ -248,11 +248,11 @@ impl Edit {
 
         self.figure.update(handle);
 
-        if !self.figure.pressed && handle.is_mouse_button_pressed(MouseButton::MOUSE_LEFT_BUTTON) {
+        if !self.figure.pressed && handle.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT) {
             self.figure.should_update = false;
         }
 
-        if !self.figure.pressed && handle.is_mouse_button_up(MouseButton::MOUSE_LEFT_BUTTON) {
+        if !self.figure.pressed && handle.is_mouse_button_up(MouseButton::MOUSE_BUTTON_LEFT) {
             self.figure.should_update = true;
         }
     }
@@ -297,7 +297,8 @@ impl Edit {
                 fs::create_dir_all(dir).unwrap();
             }
 
-            let mut image = self.framebuffer.texture().get_texture_data().unwrap();
+            // let mut image = self.framebuffer.texture().get_texture_data().unwrap();
+            let mut image = self.framebuffer.texture().load_image().unwrap();
             image.flip_vertical();
             image.export_image(filename.as_str());
         }
@@ -361,12 +362,12 @@ impl Edit {
             handle.gui_set_style(
                 GuiControl::BUTTON,
                 GuiControlProperty::TEXT_ALIGNMENT as i32,
-                GuiTextAlignment::GUI_TEXT_ALIGN_CENTER as i32,
+                GuiTextAlignment::TEXT_ALIGN_CENTER as i32,
             );
 
             let btn_press = handle.gui_toggle(
                 rrect(btn.start.x, btn.start.y, btn.len, btn.len),
-                Some(&btn.icon.clone().unwrap()),
+                Some(btn.icon.clone().unwrap().as_c_str()),
                 btn.activated,
             );
 

@@ -64,7 +64,7 @@ impl Window {
     }
 
     pub fn update(&mut self, handle: &RaylibHandle) {
-        if handle.is_mouse_button_pressed(MouseButton::MOUSE_LEFT_BUTTON) {
+        if handle.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT) {
             let mouse_pos = handle.get_mouse_position();
             let collision = unsafe {
                 CheckCollisionPointRec(
@@ -126,11 +126,10 @@ impl Window {
         );
         for (i, tab) in self.tabs.iter().enumerate() {
             let text = match &*tab.borrow() {
-                Tab::Edit { .. } => "Editar",
-                Tab::Animation { .. } => "Animar",
+                Tab::Edit { .. } => rstr!("Editar"),
+                Tab::Animation { .. } => rstr!("Animar"),
             };
-            let icon =
-                CString::new(handle.gui_icon_text(VetorIcons::ICON_CROSS.into(), None)).unwrap();
+            let icon = cstr!(handle.gui_icon_text(VetorIcons::ICON_CROSS.into(), None));
             let width = 100.0;
             let x = width * i as f32;
 
@@ -139,7 +138,7 @@ impl Window {
             handle.gui_set_style(
                 GuiControl::TOGGLE,
                 GuiControlProperty::TEXT_ALIGNMENT as i32,
-                GuiTextAlignment::GUI_TEXT_ALIGN_LEFT as i32,
+                GuiTextAlignment::TEXT_ALIGN_LEFT as i32,
             );
             handle.gui_set_style(
                 GuiControl::TOGGLE,
@@ -151,12 +150,12 @@ impl Window {
                 GuiControlProperty::TEXT_PADDING as i32,
                 10,
             );
-            handle.gui_toggle(rrect(x, 0.0, width, 30.0), Some(&cstr!(text)), is_selected);
+            handle.gui_toggle(rrect(x, 0.0, width, 30.0), Some(text), is_selected);
 
             handle.gui_set_style(
                 GuiControl::BUTTON,
                 GuiControlProperty::TEXT_ALIGNMENT as i32,
-                GuiTextAlignment::GUI_TEXT_ALIGN_CENTER as i32,
+                GuiTextAlignment::TEXT_ALIGN_CENTER as i32,
             );
             handle.gui_set_style(
                 GuiControl::BUTTON,
@@ -168,7 +167,7 @@ impl Window {
                 GuiControlProperty::BORDER_WIDTH as i32,
                 1,
             );
-            handle.gui_button(rrect(x + 75.0, 5.0, 20.0, 20.0), Some(&icon));
+            handle.gui_button(rrect(x + 75.0, 5.0, 20.0, 20.0), Some(icon.as_c_str()));
         }
     }
 }
