@@ -1,4 +1,4 @@
-use crate::{figure::Figure, styles::ColorStyle};
+use crate::figure::Figure;
 use raylib::prelude::*;
 use std::collections::HashMap;
 
@@ -148,7 +148,10 @@ impl Animation {
                 self.start.y as i32,
                 sidebar_width as i32,
                 handle.get_screen_height() - self.start.y as i32,
-                Color::from(ColorStyle::BASE_COLOR_NORMAL),
+                Color::get_color(handle.gui_get_style(
+                    GuiControl::DEFAULT,
+                    GuiDefaultProperty::BACKGROUND_COLOR as i32,
+                ) as u32),
             );
         }
 
@@ -178,7 +181,10 @@ impl Animation {
                 panel_content.y as i32,
                 panel_content.width as i32,
                 panel_content.height as i32,
-                Color::from(ColorStyle::BASE_COLOR_FOCUSED),
+                Color::get_color(scissor.gui_get_style(
+                    GuiControl::DEFAULT,
+                    GuiControlProperty::BASE_COLOR_FOCUSED as i32,
+                ) as u32),
             );
 
             // Draw frames

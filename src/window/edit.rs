@@ -3,7 +3,6 @@ use crate::{
     figure::{edge::*, *},
     icons::VetorIcons,
     maths::*,
-    styles::ColorStyle,
 };
 use raylib::{prelude::*, texture::RenderTexture2D};
 use std::{fs, path::Path};
@@ -275,34 +274,6 @@ impl Edit {
             Vector2::new(0.0, 0.0),
             Color::RAYWHITE.fade(1.0),
         );
-
-        /// Take screenshoot when press 'F'
-        /// TODO: This must be moved latter
-        if handle.is_key_pressed(KeyboardKey::KEY_F) {
-            let dir = "./tests/generated";
-            let mut filename = format!("{}/screenshot_{}.png", dir, "0");
-
-            if Path::new(dir).is_dir() {
-                let count = fs::read_dir(dir)
-                    .unwrap()
-                    .map(|f| f.unwrap().path())
-                    .filter(|p| {
-                        p.to_str()
-                            .unwrap()
-                            .starts_with(&format!("{}/{}", dir, "screenshot_"))
-                    })
-                    .count();
-                filename = format!("{}/screenshot_{}.png", dir, count);
-            } else {
-                fs::create_dir_all(dir).unwrap();
-            }
-
-            // let mut image = self.framebuffer.texture().get_texture_data().unwrap();
-            let mut image = self.framebuffer.texture().load_image().unwrap();
-            image.flip_vertical();
-            image.export_image(filename.as_str());
-        }
-        // ===== END Drawing figure =====
         // ===== Drawing sidebar edit menu =====
 
         // Draw sidebar background
@@ -311,7 +282,10 @@ impl Edit {
             self.start.y as i32,
             self.sidebar_width as i32,
             height,
-            Color::from(ColorStyle::BASE_COLOR_NORMAL),
+            Color::get_color(handle.gui_get_style(
+                GuiControl::DEFAULT,
+                GuiDefaultProperty::BACKGROUND_COLOR as i32,
+            ) as u32),
         );
 
         if self.circle.icon.is_none() {

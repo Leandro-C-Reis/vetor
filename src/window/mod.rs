@@ -8,7 +8,6 @@ use self::edit::*;
 use self::tab::Tab;
 use self::util::button::*;
 use crate::imports;
-use crate::styles::*;
 use crate::{cstr, maths::*};
 use crate::{
     figure::{
@@ -122,7 +121,10 @@ impl Window {
             0,
             handle.get_screen_width(),
             30,
-            Color::from(ColorStyle::BASE_COLOR_FOCUSED),
+            Color::get_color(handle.gui_get_style(
+                GuiControl::DEFAULT,
+                GuiControlProperty::BASE_COLOR_FOCUSED as i32,
+            ) as u32),
         );
         for (i, tab) in self.tabs.iter().enumerate() {
             let text = match &*tab.borrow() {
