@@ -1,6 +1,6 @@
-use crate::figure::Figure;
-use raylib::prelude::*;
-use std::collections::HashMap;
+use crate::{figure::Figure, imports};
+use raylib::{ffi::ImageBlurGaussian, prelude::*};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 #[derive(Debug, Clone, PartialEq)]
 struct FigureAnimation {
@@ -10,17 +10,26 @@ struct FigureAnimation {
     figure: Option<Figure>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug)]
 struct Frame {
+    texture: Rc<RefCell<RenderTexture2D>>,
+    miniature: Option<Texture2D>,
     figure_animation: Vec<FigureAnimation>,
     is_selected: bool,
 }
 
 impl Frame {
-    fn new() -> Frame {
+    fn new(handle: &mut RaylibHandle, thread: &RaylibThread, width: u32, height: u32) -> Frame {
         Frame {
             figure_animation: vec![],
             is_selected: false,
+            miniature: None,
+            texture: Rc::new(RefCell::new(
+                handle
+                    .load_render_texture(thread, width, height)
+                    .ok()
+                    .unwrap(),
+            )),
         }
     }
 
@@ -43,43 +52,76 @@ impl Frame {
             animation.figure.as_mut().unwrap().should_update = true;
         }
     }
+
+    fn render_screen(&mut self, draw_handle: &mut RaylibDrawHandle, thread: &RaylibThread) {
+        let mut texture = self.texture.borrow_mut();
+        let mut draw_texture = draw_handle.begin_texture_mode(thread, &mut texture);
+
+        // Draw figures on texture
+        for animation in &mut self.figure_animation {
+            if animation.figure.is_some() {
+                animation.figure.as_mut().unwrap().draw(&mut draw_texture);
+            }
+        }
+    }
+
+    fn render_miniature(&mut self, mut handle: &mut RaylibHandle, thread: &RaylibThread) {
+        let mut image = self.texture.borrow().texture().load_image().unwrap();
+        image.flip_vertical();
+        image.resize(150, 100);
+        image.resize_nn(150, 100);
+
+        self.miniature = Some(handle.load_texture_from_image(thread, &image).ok().unwrap());
+    }
 }
 
 pub struct Animation {
-    start: Vector2,
     figures: Vec<Figure>,
     frames: Vec<Frame>,
     selected_frame: usize,
-    main_texture: RenderTexture2D,
+    main_texture: Rc<RefCell<RenderTexture2D>>,
     frame_scroll: f32,
+    frame_position: Vector2,
+    sidebar_position: Vector2,
 }
 
 impl Animation {
     pub fn new(handle: &mut RaylibHandle, thread: &RaylibThread) -> Animation {
-        let start = Vector2::new(0.0, 30.0);
-        let mut first_frame = Frame::new();
+        let sidebar_position = Vector2::new(0.0, 30.0);
+        let frame_position = rvec2(80, 30);
+
+        let mut first_frame = Frame::new(
+            handle,
+            thread,
+            handle.get_screen_width() as u32 - frame_position.x as u32,
+            handle.get_screen_height() as u32 - 100 - frame_position.y as u32 as u32,
+        );
         first_frame.is_selected = true;
 
-        let main_texture = handle
-            .load_render_texture(
-                &thread,
-                handle.get_screen_width() as u32,
-                handle.get_screen_height() as u32,
-            )
-            .ok()
-            .unwrap();
+        let figure = imports::bin::import_from_raw(
+            "men.vec",
+            rvec2(
+                first_frame.texture.borrow().width() / 2,
+                first_frame.texture.borrow().height() / 2,
+            ),
+        );
 
-        Animation {
-            figures: vec![],
-            frames: vec![first_frame],
+        let mut animation = Animation {
             selected_frame: 0,
             frame_scroll: 0.0,
-            main_texture,
-            start,
-        }
+            main_texture: first_frame.texture.clone(),
+            figures: vec![],
+            frames: vec![first_frame],
+            sidebar_position,
+            frame_position,
+        };
+
+        animation.push_figure(figure.clone());
+        animation.push_figure(figure);
+        animation
     }
 
-    pub fn update(&mut self, handle: &RaylibHandle) {
+    pub fn update(&mut self, mut handle: &mut RaylibHandle, thread: &RaylibThread) {
         let mut frame = &mut self.frames[self.selected_frame];
 
         // Update figures and animation state
@@ -88,7 +130,7 @@ impl Animation {
 
             match animation.figure.as_mut() {
                 Some(figure) => {
-                    figure.update(handle);
+                    figure.update(handle, rvec2(80, 30));
 
                     if figure.should_update {
                         animation.moved_edges = self.figures[animation.global_index]
@@ -106,49 +148,44 @@ impl Animation {
             }
         }
 
+        frame.render_miniature(handle, thread);
+
         if handle.is_mouse_button_up(MouseButton::MOUSE_BUTTON_LEFT) {
             frame.enable_all();
         }
     }
 
-    pub fn draw(&mut self, handle: &mut RaylibDrawHandle, thread: &RaylibThread) {
+    pub fn draw(&mut self, draw_handle: &mut RaylibDrawHandle, thread: &RaylibThread) {
         let mut frame = &mut self.frames[self.selected_frame];
+        let sidebar_width = 80.0;
 
-        // Draw figures on texture
-        {
-            let mut draw_texture = handle.begin_texture_mode(thread, &mut self.main_texture);
-
-            for animation in &mut frame.figure_animation {
-                if animation.figure.is_some() {
-                    animation.figure.as_mut().unwrap().draw(&mut draw_texture);
-                }
-            }
-        }
+        frame.render_screen(draw_handle, thread);
 
         // Draw main screen texture
-        handle.draw_texture_rec(
-            self.main_texture.texture(),
+        draw_handle.draw_texture_rec(
+            self.main_texture.borrow().texture(),
             rrect(
-                0.0,
-                0.0,
-                self.main_texture.texture.width,
-                -self.main_texture.texture.height,
+                0,
+                0,
+                self.main_texture.borrow().texture.width,
+                -self.main_texture.borrow().texture.height,
             ),
-            Vector2::new(0.0, 0.0),
+            rvec2(
+                self.sidebar_position.x + sidebar_width,
+                self.sidebar_position.y,
+            ),
             Color::RAYWHITE.fade(1.0),
         );
-
-        let sidebar_width = 80.0;
 
         // Draw sidebar
         {
             // Background
-            handle.draw_rectangle(
-                self.start.x as i32,
-                self.start.y as i32,
+            draw_handle.draw_rectangle(
+                self.sidebar_position.x as i32,
+                self.sidebar_position.y as i32,
                 sidebar_width as i32,
-                handle.get_screen_height() - self.start.y as i32,
-                Color::get_color(handle.gui_get_style(
+                draw_handle.get_screen_height() - self.sidebar_position.y as i32,
+                Color::get_color(draw_handle.gui_get_style(
                     GuiControl::DEFAULT,
                     GuiDefaultProperty::BACKGROUND_COLOR as i32,
                 ) as u32),
@@ -157,18 +194,24 @@ impl Animation {
 
         // Draw animation frames
         {
-            let width = handle.get_screen_width() - 80;
-            let height = 115;
-            let x = (self.start.x + sidebar_width) as i32;
-            let y = handle.get_screen_height() - height;
-            let frame_count = 15;
+            let frame_count = self.frames.len() as i32;
             let frame_width = 150;
             let frame_gap = 10;
-            let scrollbar_height = 15;
+            let max_width = (frame_count * frame_width) + (frame_count - 1) * frame_gap;
+            let mut scrollbar_height = 15;
+            let width = draw_handle.get_screen_width() - 80;
+            let height = if max_width < width {
+                scrollbar_height = 0;
+                100
+            } else {
+                100 + scrollbar_height
+            };
+            let x = (self.sidebar_position.x + sidebar_width) as i32;
+            let y = draw_handle.get_screen_height() - height;
             let panel_content = rrect(x, y, width, height);
 
             // Avoid render out of scissor area
-            let mut scissor = handle.begin_scissor_mode(
+            let mut scissor = draw_handle.begin_scissor_mode(
                 panel_content.x as i32,
                 panel_content.y as i32,
                 panel_content.width as i32,
@@ -199,18 +242,17 @@ impl Animation {
                 };
 
                 // Draw frame
+                scissor.draw_texture_rec(
+                    self.frames[i as usize].miniature.as_ref().unwrap(),
+                    rrect(0, 0, frame_width, height),
+                    rvec2(x + moved_content, y),
+                    Color::RAYWHITE.fade(1.0),
+                );
                 scissor.draw_rectangle_lines(
                     x + moved_content,
                     y,
                     frame_width,
                     height - scrollbar_height,
-                    Color::BLACK,
-                );
-                scissor.draw_text(
-                    &format!("{}", i + 1),
-                    x + moved_content + (frame_width / 2),
-                    y + (height / 2) - 12,
-                    24,
                     Color::BLACK,
                 );
             }
@@ -222,39 +264,43 @@ impl Animation {
                 300,
             );
 
-            let max_value = (frame_width * frame_count) as f32
-                + (frame_gap * (frame_count - 1)) as f32
-                - width as f32;
+            // Avoid draw scrollbar when frames is less then width
+            if max_width > width {
+                let max_value = (frame_width * frame_count) as f32
+                    + (frame_gap * (frame_count - 1)) as f32
+                    - width as f32;
 
-            // Fit frame scroll at mouse scrolling
-            if panel_content.check_collision_point_rec(scissor.get_mouse_position()) {
-                self.frame_scroll = if scissor.get_mouse_wheel_move() != 0.0 {
-                    let mut next_move = self.frame_scroll + scissor.get_mouse_wheel_move() * -150.0;
-                    if next_move < 0.0 {
-                        next_move = 0.0;
-                    } else if next_move > max_value + frame_width as f32 {
-                        next_move = max_value;
-                    }
+                // Fit frame scroll at mouse scrolling
+                if panel_content.check_collision_point_rec(scissor.get_mouse_position()) {
+                    self.frame_scroll = if scissor.get_mouse_wheel_move() != 0.0 {
+                        let mut next_move = self.frame_scroll
+                            + scissor.get_mouse_wheel_move() * -frame_width as f32;
+                        if next_move < 0.0 {
+                            next_move = 0.0;
+                        } else if next_move > max_value + frame_width as f32 {
+                            next_move = max_value;
+                        }
 
-                    next_move
-                } else {
-                    self.frame_scroll
-                };
+                        next_move
+                    } else {
+                        self.frame_scroll
+                    };
+                }
+
+                self.frame_scroll = scissor.gui_slider(
+                    rrect(
+                        x,
+                        scissor.get_screen_height() - scrollbar_height,
+                        width,
+                        scrollbar_height,
+                    ),
+                    None,
+                    None,
+                    self.frame_scroll,
+                    0.0,
+                    max_value,
+                );
             }
-
-            self.frame_scroll = scissor.gui_slider(
-                rrect(
-                    x,
-                    scissor.get_screen_height() - scrollbar_height,
-                    width,
-                    scrollbar_height,
-                ),
-                None,
-                None,
-                self.frame_scroll,
-                0.0,
-                max_value,
-            )
         }
     }
 

@@ -82,7 +82,7 @@ fn main() {
             }
         }
 
-        window.update(&handle);
+        window.update(&mut handle, &thread);
         // ===== END ======
 
         // ===== Draw =====

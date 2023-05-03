@@ -48,21 +48,13 @@ impl Window {
         let edit_tab = Rc::new(RefCell::new(Tab::Edit(Edit::new(figure.clone(), texture))));
         let animation_tab = Rc::new(RefCell::new(Tab::Animation(Animation::new(handle, thread))));
 
-        match &mut *animation_tab.borrow_mut() {
-            Tab::Animation(page) => {
-                page.push_figure(figure.clone());
-                page.push_figure(figure.clone());
-            }
-            _ => (),
-        }
-
         Window {
             tabs: vec![edit_tab.clone(), animation_tab.clone()],
             selected_tab: animation_tab,
         }
     }
 
-    pub fn update(&mut self, handle: &RaylibHandle) {
+    pub fn update(&mut self, handle: &mut RaylibHandle, thread: &RaylibThread) {
         if handle.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT) {
             let mouse_pos = handle.get_mouse_position();
             let collision = unsafe {
@@ -99,7 +91,7 @@ impl Window {
                 page.update(handle);
             }
             Tab::Animation(page) => {
-                page.update(handle);
+                page.update(handle, thread);
             }
         }
     }

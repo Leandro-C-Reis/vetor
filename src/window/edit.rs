@@ -245,7 +245,7 @@ impl Edit {
             }
         }
 
-        self.figure.update(handle);
+        self.figure.update(handle, rvec2(0, 0));
 
         if !self.figure.pressed && handle.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT) {
             self.figure.should_update = false;

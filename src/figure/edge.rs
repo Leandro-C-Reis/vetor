@@ -85,8 +85,10 @@ impl Edge {
         line_tree: &Vec<Edge>,
         point_pressed: &mut bool,
         pressed_root: &mut bool,
+        start_position: Vector2,
     ) -> Edge {
-        let mouse_pos = handle.get_mouse_position();
+        // Discount start position to align with texture position
+        let mouse_pos = handle.get_mouse_position().sub(start_position);
         self.moved = false;
         self.moved_angle = 0.0;
 

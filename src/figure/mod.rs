@@ -43,7 +43,7 @@ impl Figure {
     }
 
     // 1. === Update and Draw ===
-    pub fn update(&mut self, handle: &RaylibHandle) {
+    pub fn update(&mut self, handle: &RaylibHandle, start_position: Vector2) {
         self.selected = None;
 
         if self.should_update {
@@ -57,6 +57,7 @@ impl Figure {
                     &self.tree,
                     &mut self.pressed,
                     &mut self.presset_root,
+                    start_position,
                 );
 
                 if pressed_before != self.pressed {
