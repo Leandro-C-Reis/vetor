@@ -48,6 +48,9 @@ impl Animation {
 
         animation.push_figure(figure.clone());
         animation.push_figure(figure);
+        animation.update(handle, thread);
+        animation.frames[0].render_screen(&mut handle.begin_drawing(thread), thread);
+        animation.frames[0].render_miniature(handle, thread);
         animation
     }
 
@@ -77,8 +80,6 @@ impl Animation {
                 }
             }
         }
-
-        frame.render_miniature(handle, thread);
 
         if handle.is_mouse_button_up(MouseButton::MOUSE_BUTTON_LEFT) {
             frame.enable_all();

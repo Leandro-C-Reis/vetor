@@ -54,6 +54,7 @@ impl Frame {
         }
     }
 
+    // Render screen texture
     pub fn render_screen(&mut self, draw_handle: &mut RaylibDrawHandle, thread: &RaylibThread) {
         let mut texture = self.texture.borrow_mut();
         let mut draw_texture = draw_handle.begin_texture_mode(thread, &mut texture);
@@ -66,11 +67,11 @@ impl Frame {
         }
     }
 
+    /// Scan and resize screen texture to miniature texture
     pub fn render_miniature(&mut self, mut handle: &mut RaylibHandle, thread: &RaylibThread) {
         let mut image = self.texture.borrow().texture().load_image().unwrap();
         image.flip_vertical();
         image.resize(150, 100);
-        image.resize_nn(150, 100);
 
         self.miniature = Some(handle.load_texture_from_image(thread, &image).ok().unwrap());
     }
