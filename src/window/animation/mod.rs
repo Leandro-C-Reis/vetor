@@ -1,79 +1,9 @@
+pub mod frame;
+
+use self::frame::*;
 use crate::{figure::Figure, imports};
 use raylib::{ffi::ImageBlurGaussian, prelude::*};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
-
-#[derive(Debug, Clone, PartialEq)]
-struct FigureAnimation {
-    global_index: usize,
-    local_index: usize,
-    moved_edges: HashMap<usize, (Vector2, Vector2)>,
-    figure: Option<Figure>,
-}
-
-#[derive(Debug)]
-struct Frame {
-    texture: Rc<RefCell<RenderTexture2D>>,
-    miniature: Option<Texture2D>,
-    figure_animation: Vec<FigureAnimation>,
-    is_selected: bool,
-}
-
-impl Frame {
-    fn new(handle: &mut RaylibHandle, thread: &RaylibThread, width: u32, height: u32) -> Frame {
-        Frame {
-            figure_animation: vec![],
-            is_selected: false,
-            miniature: None,
-            texture: Rc::new(RefCell::new(
-                handle
-                    .load_render_texture(thread, width, height)
-                    .ok()
-                    .unwrap(),
-            )),
-        }
-    }
-
-    fn disable_except(&mut self, index: usize) {
-        for i in 0..self.figure_animation.len() {
-            if i == index {
-                continue;
-            }
-
-            self.figure_animation[i]
-                .figure
-                .as_mut()
-                .unwrap()
-                .should_update = false;
-        }
-    }
-
-    fn enable_all(&mut self) {
-        for animation in &mut self.figure_animation {
-            animation.figure.as_mut().unwrap().should_update = true;
-        }
-    }
-
-    fn render_screen(&mut self, draw_handle: &mut RaylibDrawHandle, thread: &RaylibThread) {
-        let mut texture = self.texture.borrow_mut();
-        let mut draw_texture = draw_handle.begin_texture_mode(thread, &mut texture);
-
-        // Draw figures on texture
-        for animation in &mut self.figure_animation {
-            if animation.figure.is_some() {
-                animation.figure.as_mut().unwrap().draw(&mut draw_texture);
-            }
-        }
-    }
-
-    fn render_miniature(&mut self, mut handle: &mut RaylibHandle, thread: &RaylibThread) {
-        let mut image = self.texture.borrow().texture().load_image().unwrap();
-        image.flip_vertical();
-        image.resize(150, 100);
-        image.resize_nn(150, 100);
-
-        self.miniature = Some(handle.load_texture_from_image(thread, &image).ok().unwrap());
-    }
-}
 
 pub struct Animation {
     figures: Vec<Figure>,
