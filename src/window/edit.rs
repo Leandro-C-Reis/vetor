@@ -27,7 +27,7 @@ pub struct Edit {
 
 impl Edit {
     pub fn new(figure: Figure, texture: RenderTexture2D) -> Edit {
-        let sidebar_width = 80.0;
+        let sidebar_width = 100.0;
         let start = Vector2::new(0.0, 30.0);
 
         let circle = Button::dynamic_new(0, 0, start, sidebar_width);
@@ -334,7 +334,7 @@ impl Edit {
             &mut self.format,
         ] {
             handle.gui_set_style(
-                GuiControl::BUTTON,
+                GuiControl::TOGGLE,
                 GuiControlProperty::TEXT_ALIGNMENT as i32,
                 GuiTextAlignment::TEXT_ALIGN_CENTER as i32,
             );

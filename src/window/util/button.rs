@@ -24,7 +24,7 @@ impl Button {
     }
 
     pub fn dynamic_new(row: i32, col: i32, start: Vector2, width: f32) -> Button {
-        let gap = width * 0.05;
+        let gap = width * 0.1;
         let icon_width = (width / 2.0) - gap;
 
         let factorx = (col as f32 * icon_width) + if col > 0 { gap * 1.5 } else { gap / 2.0 };

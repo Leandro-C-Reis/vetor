@@ -32,8 +32,11 @@ fn main() {
 
     let (mut handle, thread) = raylib::init()
         .size(screen_width, screen_height)
+        .resizable()
         .title("Vetor Studio")
         .build();
+
+    handle.set_window_min_size(500, 400);
 
     let mut window = Window::new(&mut handle, &thread);
 

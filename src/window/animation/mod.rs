@@ -22,7 +22,7 @@ pub struct Animation {
 
 impl Animation {
     pub fn new(handle: &mut RaylibHandle, thread: &RaylibThread) -> Animation {
-        let sidebar = rrect(0, 30, 80, handle.get_screen_height() - 30);
+        let sidebar = rrect(0, 30, 100, handle.get_screen_height() - 30);
         let frame_position = rvec2(80, 30);
 
         let mut first_frame = Frame::new(
@@ -173,6 +173,7 @@ impl Animation {
 
         // Draw sidebar
         {
+            self.sidebar.height = draw_handle.get_screen_height() as f32 - self.sidebar.y;
             // Background
             draw_handle.draw_rectangle_rec(
                 self.sidebar,
@@ -183,7 +184,12 @@ impl Animation {
             );
 
             self.sidebar_play.activated = draw_handle.gui_button(
-                rrect(self.sidebar_play.start.x, self.sidebar_play.start.y, 60, 30),
+                rrect(
+                    self.sidebar_play.start.x,
+                    self.sidebar_play.start.y,
+                    self.sidebar.width - 20.0,
+                    30,
+                ),
                 Some(self.sidebar_play.text.clone().unwrap().as_c_str()),
             );
         }
