@@ -4,7 +4,7 @@ use std::ffi::CString;
 
 pub struct Button {
     pub activated: bool,
-    pub icon: Option<CString>,
+    pub text: Option<CString>,
     pub start: Vector2,
     pub len: f32,
 }
@@ -14,13 +14,13 @@ impl Button {
         Button {
             activated: false,
             len: 30.0,
-            icon: None,
+            text: None,
             start,
         }
     }
 
     pub fn set_icon(&mut self, handle: &mut RaylibDrawHandle, icon: VetorIcons) {
-        self.icon = Some(CString::new(handle.gui_icon_text(icon.into(), None)).unwrap());
+        self.text = Some(CString::new(handle.gui_icon_text(icon.into(), None)).unwrap());
     }
 
     pub fn dynamic_new(row: i32, col: i32, start: Vector2, width: f32) -> Button {
@@ -33,7 +33,7 @@ impl Button {
         Button {
             activated: false,
             len: icon_width,
-            icon: None,
+            text: None,
             start: Vector2::new(start.x + factorx, start.y + factory),
         }
     }

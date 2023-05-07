@@ -184,28 +184,23 @@ impl Figure {
         self.tmp_edge = Some(edge);
     }
 
-    /// Check difference between figures and return a HashMap with
-    /// changed edges position.
-    pub fn diff(&mut self, figure: Figure) -> Result<HashMap<usize, (Vector2, Vector2)>, &str> {
+    pub fn scan(&self) -> HashMap<usize, (Vector2, Vector2)> {
         let mut compare_map = HashMap::new();
 
-        if self.tree.len() != figure.tree.len() {
-            return Err("Figures have different length");
-        }
-
         for (index, edge) in self.tree.iter().enumerate() {
-            let fedge = figure.tree[index];
-
-            if edge.parent != fedge.parent {
-                return Err("Figure tree is not the same distribution");
-            }
-
-            if edge.start != fedge.start || edge.end != fedge.end {
-                compare_map.insert(index, (fedge.start, fedge.end));
-            }
+            compare_map.insert(index, (edge.start, edge.end));
         }
 
-        Ok(compare_map)
+        compare_map
+    }
+
+    pub fn load_state(&mut self, diff: HashMap<usize, (Vector2, Vector2)>) {
+        for (index, vertex) in diff.iter() {
+            let mut edge = &mut self.tree[*index];
+            edge.start = vertex.0;
+            edge.end = vertex.1;
+            edge.update_angle();
+        }
     }
 
     // 3. === Controllers ===

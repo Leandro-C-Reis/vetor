@@ -288,36 +288,36 @@ impl Edit {
             ) as u32),
         );
 
-        if self.circle.icon.is_none() {
+        if self.circle.text.is_none() {
             self.circle.set_icon(handle, VetorIcons::ICON_CIRCLE)
         }
-        if self.insert.icon.is_none() {
+        if self.insert.text.is_none() {
             self.insert.set_icon(handle, VetorIcons::ICON_LINE)
         }
-        if self.hexagon.icon.is_none() {
+        if self.hexagon.text.is_none() {
             self.hexagon.set_icon(handle, VetorIcons::ICON_HEXAGON)
         }
-        if self.copy.icon.is_none() {
+        if self.copy.text.is_none() {
             self.copy.set_icon(handle, VetorIcons::ICON_COPY)
         }
-        if self.toggle_type.icon.is_none() {
+        if self.toggle_type.text.is_none() {
             self.toggle_type
                 .set_icon(handle, VetorIcons::ICON_CIRCLE_LINED)
         }
-        if self.delete.icon.is_none() {
+        if self.delete.text.is_none() {
             self.delete.set_icon(handle, VetorIcons::ICON_CROSS_BOLD)
         }
-        if self.divide.icon.is_none() {
+        if self.divide.text.is_none() {
             self.divide.set_icon(handle, VetorIcons::ICON_DIVIDE)
         }
-        if self.circle_fill.icon.is_none() {
+        if self.circle_fill.text.is_none() {
             self.circle_fill
                 .set_icon(handle, VetorIcons::ICON_UNDEFINED)
         }
-        if self.root.icon.is_none() {
+        if self.root.text.is_none() {
             self.root.set_icon(handle, VetorIcons::ICON_ROOT)
         }
-        if self.format.icon.is_none() {
+        if self.format.text.is_none() {
             self.format.set_icon(handle, VetorIcons::ICON_VERTEX_FORMAT)
         }
 
@@ -341,7 +341,7 @@ impl Edit {
 
             let btn_press = handle.gui_toggle(
                 rrect(btn.start.x, btn.start.y, btn.len, btn.len),
-                Some(btn.icon.clone().unwrap().as_c_str()),
+                Some(btn.text.clone().unwrap().as_c_str()),
                 btn.activated,
             );
 
