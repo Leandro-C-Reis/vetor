@@ -18,6 +18,16 @@ impl From<isize> for EdgeFormat {
     }
 }
 
+impl Into<isize> for EdgeFormat {
+    fn into(self) -> isize {
+        match self {
+            EdgeFormat::LINE => 1,
+            EdgeFormat::CIRCLE => 2,
+            _ => 1,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Copy)]
 pub struct EdgeDrawOption {
     pub point: bool,

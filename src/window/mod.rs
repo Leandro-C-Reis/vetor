@@ -7,7 +7,7 @@ use self::animation::*;
 use self::edit::*;
 use self::tab::Tab;
 use self::util::button::*;
-use crate::imports;
+use crate::archives;
 use crate::{cstr, maths::*};
 use crate::{
     figure::{
@@ -28,13 +28,12 @@ pub struct Window {
 
 impl Window {
     pub fn new(handle: &mut RaylibHandle, thread: &RaylibThread) -> Window {
-        let mut figure = imports::bin::import_from_raw(
-            "men.vec",
-            Vector2::new(
-                (handle.get_screen_width() / 2) as f32,
-                (handle.get_screen_height() / 2) as f32,
-            ),
-        );
+        let mut figure = archives::import_raw_figure("men.raw.fig");
+
+        figure.center_to(rvec2(
+            handle.get_screen_width() / 2,
+            handle.get_screen_height() / 2,
+        ));
 
         let texture = handle
             .load_render_texture(
@@ -46,7 +45,11 @@ impl Window {
             .unwrap();
 
         let edit_tab = Rc::new(RefCell::new(Tab::Edit(Edit::new(figure.clone(), texture))));
-        let animation_tab = Rc::new(RefCell::new(Tab::Animation(Animation::new(handle, thread))));
+        let animation_tab = Rc::new(RefCell::new(Tab::Animation(Animation::from_raw(
+            "./src/assets/animations/unnamed.raw.anim",
+            handle,
+            thread,
+        ))));
 
         Window {
             tabs: vec![edit_tab.clone(), animation_tab.clone()],

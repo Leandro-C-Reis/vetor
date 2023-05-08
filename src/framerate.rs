@@ -1,18 +1,18 @@
+use raylib::prelude::*;
 use std::ffi::{CStr, CString};
+use std::fs::{self, *};
 use std::io::{BufWriter, Write};
-use std::fs::{*, self};
 use std::path::Path;
 use std::process::{Command, Stdio};
-use raylib::prelude::*;
 
-use crate::{cstr, imports};
+use crate::{archives, cstr};
 
 fn ffmpeg_folder_convert(from: &str, format: &str) {
     if Path::new(from).is_dir() {
         let mut files: Vec<_> = fs::read_dir(from)
             .unwrap()
             .map(|f| f.unwrap().path())
-        .collect();
+            .collect();
 
         files.sort();
 
@@ -21,15 +21,15 @@ fn ffmpeg_folder_convert(from: &str, format: &str) {
             .args(["out.mp4"])
             .stdin(Stdio::piped())
             .spawn()
-        .expect("Cannot spawn ffmpeg command");
-    
+            .expect("Cannot spawn ffmpeg command");
+
         let stdin = ffmpeg.stdin.as_mut().unwrap();
-        
+
         for path in files {
             let file = fs::read(path).expect("Cannot read file");
             stdin.write_all(file.as_slice());
         }
-        
+
         stdin.flush().expect("Cannot flush ffmpeg stdin");
         ffmpeg.wait();
     }

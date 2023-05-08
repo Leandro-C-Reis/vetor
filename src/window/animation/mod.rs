@@ -2,12 +2,27 @@ pub mod frame;
 
 use self::frame::*;
 use super::util::button::Button;
-use crate::{cstr, figure::Figure, imports, maths::*};
+use crate::{
+    archives::{self, figure_to_raw},
+    cstr,
+    figure::Figure,
+    maths::*,
+};
 use raylib::{
     ffi::{CheckCollisionPointRec, ImageBlurGaussian},
     prelude::*,
 };
-use std::{borrow::BorrowMut, cell::RefCell, collections::HashMap, ffi::CString, rc::Rc};
+use regex::Regex;
+use std::{
+    borrow::{Borrow, BorrowMut},
+    cell::RefCell,
+    cmp::Ordering,
+    collections::HashMap,
+    ffi::CString,
+    fs::{self, File},
+    io::{Read, Write},
+    rc::Rc,
+};
 
 pub struct Animation {
     figures: Vec<Rc<RefCell<Figure>>>,
@@ -18,12 +33,13 @@ pub struct Animation {
     frame_position: Vector2,
     sidebar: Rectangle,
     sidebar_play: Button,
+    save: Button,
 }
 
 impl Animation {
     pub fn new(handle: &mut RaylibHandle, thread: &RaylibThread) -> Animation {
         let sidebar = rrect(0, 30, 100, handle.get_screen_height() - 30);
-        let frame_position = rvec2(80, 30);
+        let frame_position = rvec2(sidebar.width, 30);
 
         let mut first_frame = Frame::new(
             handle,
@@ -33,18 +49,18 @@ impl Animation {
         );
         first_frame.is_selected = true;
 
-        let figure = imports::bin::import_from_raw(
-            "men.vec",
-            rvec2(
-                first_frame.texture.borrow().width() / 2,
-                first_frame.texture.borrow().height() / 2,
-            ),
-        );
+        let mut figure = archives::import_raw_figure("men.raw.fig");
+
+        figure.center_to(rvec2(
+            first_frame.texture.try_borrow().ok().unwrap().width() / 2,
+            first_frame.texture.try_borrow().ok().unwrap().height() / 2,
+        ));
 
         let mut animation = Animation {
             selected_frame: 0,
             frame_scroll: 0.0,
             sidebar_play: Button::new(rvec2(sidebar.x, sidebar.y).add(rvec2(10, 10))),
+            save: Button::new(rvec2(sidebar.x, sidebar.y).add(rvec2(10, 50))),
             main_texture: first_frame.texture.clone(),
             figures: vec![],
             frames: vec![first_frame],
@@ -53,6 +69,7 @@ impl Animation {
         };
 
         animation.sidebar_play.text = Some(cstr!("Add Frame"));
+        animation.save.text = Some(cstr!("Salvar"));
         animation.push_figure(figure.clone());
         animation.push_figure(figure);
         animation.update(handle, thread);
@@ -62,6 +79,10 @@ impl Animation {
     }
 
     pub fn update(&mut self, mut handle: &mut RaylibHandle, thread: &RaylibThread) {
+        if handle.is_key_pressed(KeyboardKey::KEY_DELETE) {
+            self.remove_frame();
+        }
+
         let frame_count = self.frames.len() as i32;
         let mut frame = &mut self.frames[self.selected_frame];
 
@@ -69,15 +90,23 @@ impl Animation {
         for index in 0..frame.figure_animation.len() {
             match frame.figure_animation[index].figure.try_borrow_mut() {
                 Ok(mut figure) => {
-                    figure.update(handle, rvec2(80, 30));
+                    figure.update(handle, self.frame_position);
                 }
                 _ => (),
             }
 
-            if frame.figure_animation[index].figure.borrow().should_update {
+            if frame.figure_animation[index]
+                .figure
+                .try_borrow()
+                .ok()
+                .unwrap()
+                .should_update
+            {
                 if frame.figure_animation[index]
                     .figure
-                    .borrow()
+                    .try_borrow()
+                    .ok()
+                    .unwrap()
                     .selected
                     .is_some()
                 {
@@ -92,26 +121,11 @@ impl Animation {
         }
 
         if self.sidebar_play.activated {
-            let texture = handle
-                .load_render_texture(
-                    thread,
-                    frame.texture.borrow().width() as u32,
-                    frame.texture.borrow().height() as u32,
-                )
-                .ok()
-                .unwrap();
+            self.push_frame(handle, thread);
+        }
 
-            let mut new_frame = frame.clone(texture);
-            new_frame.render_screen(&mut handle.begin_drawing(thread), thread);
-            new_frame.render_miniature(handle, thread);
-            new_frame.save_state();
-            frame.is_selected = false;
-            frame.render_miniature(handle, thread);
-            frame.save_state();
-
-            self.main_texture = new_frame.texture.clone();
-            self.selected_frame = self.frames.len();
-            self.frames.push(new_frame);
+        if self.save.activated {
+            self.save_raw("./src/assets/animations/unnamed.raw.anim");
         }
 
         if handle.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT) {
@@ -158,14 +172,15 @@ impl Animation {
 
         frame.render_screen(draw_handle, thread);
 
+        let main_texture = self.main_texture.try_borrow().ok().unwrap();
         // Draw main screen texture
         draw_handle.draw_texture_rec(
-            self.main_texture.borrow().texture(),
+            main_texture.texture(),
             rrect(
                 0,
                 0,
-                self.main_texture.borrow().texture.width,
-                -self.main_texture.borrow().texture.height,
+                main_texture.texture.width,
+                -main_texture.texture.height,
             ),
             rvec2(self.sidebar.x + self.sidebar.width, self.sidebar.y),
             Color::RAYWHITE.fade(1.0),
@@ -191,6 +206,16 @@ impl Animation {
                     30,
                 ),
                 Some(self.sidebar_play.text.clone().unwrap().as_c_str()),
+            );
+
+            self.save.activated = draw_handle.gui_button(
+                rrect(
+                    self.save.start.x,
+                    self.save.start.y,
+                    self.sidebar.width - 20.0,
+                    30,
+                ),
+                Some(self.save.text.clone().unwrap().as_c_str()),
             );
         }
 
@@ -316,13 +341,13 @@ impl Animation {
     }
 
     pub fn push_figure(&mut self, figure: Figure) {
-        self.figures.push(Rc::new(RefCell::new(figure)));
+        self.figures.push(Rc::new(RefCell::new(figure.clone())));
 
         let mut frame = &mut self.frames[self.selected_frame];
         frame.figure_animation.push(FigureAnimation {
             global_index: self.figures.len() - 1,
             local_index: frame.figure_animation.len(),
-            moved_edges: HashMap::new(),
+            moved_edges: figure.scan(),
             figure: self.figures.last().unwrap().clone(),
         });
     }
@@ -342,5 +367,195 @@ impl Animation {
                 .unwrap()
                 .load_state(fig.moved_edges.clone());
         }
+    }
+
+    pub fn push_frame(&mut self, handle: &mut RaylibHandle, thread: &RaylibThread) {
+        let mut frame = &mut self.frames[self.selected_frame];
+
+        let texture = handle
+            .load_render_texture(
+                thread,
+                frame.texture.try_borrow().ok().unwrap().width() as u32,
+                frame.texture.try_borrow().ok().unwrap().height() as u32,
+            )
+            .ok()
+            .unwrap();
+
+        let mut new_frame = frame.clone(texture);
+        new_frame.render_screen(&mut handle.begin_drawing(thread), thread);
+        new_frame.render_miniature(handle, thread);
+        new_frame.save_state();
+        frame.is_selected = false;
+        frame.render_miniature(handle, thread);
+        frame.save_state();
+
+        self.main_texture = new_frame.texture.clone();
+        self.selected_frame = self.frames.len();
+        self.frames.push(new_frame);
+    }
+
+    pub fn remove_frame(&mut self) {
+        self.frames.remove(self.selected_frame);
+        self.selected_frame = self.frames.len() - 1;
+
+        let mut frame = &mut self.frames[self.selected_frame];
+        frame.is_selected = true;
+        self.main_texture = frame.texture.clone();
+        self.frame_scroll = 0.0;
+    }
+
+    /// Save animation into a file with raw format
+    pub fn save_raw(&mut self, file: &str) {
+        let mut file = File::create(file).ok().unwrap();
+
+        // Save Figures
+        for (i, figRef) in self.figures.iter().enumerate() {
+            let figure = figRef.try_borrow().ok().unwrap();
+            let points = archives::figure_to_raw(figure.clone());
+
+            for point in points {
+                file.write(
+                    format!(
+                        "{},{},{},{},{}\n",
+                        point.typ, point.x, point.y, point.parent, point.index
+                    )
+                    .as_bytes(),
+                )
+                .expect("Cannot write points to file");
+            }
+
+            // Add interssection only in between figures
+            if i != self.figures.len() - 1 {
+                file.write("^\n".as_bytes()).ok();
+            };
+        }
+
+        for (frame_index, frame) in self.frames.iter_mut().enumerate() {
+            file.write(format!("@Frame {}\n", frame_index).as_bytes())
+                .ok();
+            for figState in &mut frame.figure_animation {
+                file.write(format!("^{}\n", figState.global_index).as_bytes())
+                    .ok();
+
+                figState
+                    .figure
+                    .try_borrow_mut()
+                    .ok()
+                    .unwrap()
+                    .load_state(figState.moved_edges.clone());
+                figState.moved_edges = figState.figure.try_borrow().ok().unwrap().scan();
+                let mut moved_edges: Vec<_> = figState.moved_edges.iter().collect();
+
+                moved_edges.sort_by(|a, b| {
+                    if a.0 == b.0 {
+                        return Ordering::Equal;
+                    } else if a.0 < b.0 {
+                        return Ordering::Less;
+                    }
+
+                    Ordering::Greater
+                });
+
+                for (_, edge) in moved_edges {
+                    file.write(
+                        format!("{},{},{},{}\n", edge.0.x, edge.0.y, edge.1.x, edge.1.y).as_bytes(),
+                    )
+                    .ok();
+                }
+            }
+        }
+    }
+
+    pub fn from_raw(file: &str, handle: &mut RaylibHandle, thread: &RaylibThread) -> Animation {
+        let file = fs::read_to_string(file).ok().unwrap();
+        let split: Vec<_> = file.split("@Frame").collect();
+        let (figs, frames) = (split[0], &split[1..]);
+        let mut animation = Animation::new(handle, thread);
+
+        animation.figures = vec![];
+        animation.frames[0].figure_animation = vec![];
+
+        for fig in figs.split("^\n") {
+            animation
+                .figures
+                .push(Rc::new(RefCell::new(archives::raw_to_figure(fig))));
+        }
+
+        let mut last_frame = animation.frames.first_mut().unwrap();
+        let center = rvec2(
+            handle.get_screen_width() / 2,
+            handle.get_screen_height() / 2,
+        );
+
+        for (i, frameStr) in frames.iter().enumerate() {
+            last_frame.figure_animation = vec![];
+
+            for state in frameStr.split_once("\n").unwrap().1.split("^") {
+                if state.trim().len() == 0 {
+                    continue;
+                }
+
+                let mut lines = state.lines();
+                let index = lines.next().unwrap().parse::<usize>().ok().unwrap();
+                let mut moved_edges = HashMap::new();
+
+                for line in lines {
+                    let edge: Vec<_> = line.split(",").collect();
+
+                    if edge.len() < 4 {
+                        continue;
+                    }
+
+                    let start = rvec2(
+                        edge[0].parse::<i32>().unwrap(),
+                        edge[1].parse::<i32>().unwrap(),
+                    );
+                    let end = rvec2(
+                        edge[2].parse::<i32>().unwrap(),
+                        edge[3].parse::<i32>().unwrap(),
+                    );
+
+                    moved_edges.insert(moved_edges.len() as usize, (start, end));
+                }
+
+                let mut figure = animation.figures[index].try_borrow_mut().ok().unwrap();
+                figure.load_state(moved_edges.clone());
+
+                last_frame.figure_animation.push(FigureAnimation {
+                    global_index: index,
+                    local_index: last_frame.figure_animation.len(),
+                    figure: animation.figures[index].clone(),
+                    moved_edges,
+                });
+            }
+
+            let texture = handle
+                .load_render_texture(
+                    thread,
+                    last_frame.texture.try_borrow().ok().unwrap().width() as u32,
+                    last_frame.texture.try_borrow().ok().unwrap().height() as u32,
+                )
+                .ok()
+                .unwrap();
+
+            last_frame.is_selected = false;
+            last_frame.render_screen(&mut handle.begin_drawing(thread), thread);
+            last_frame.render_miniature(handle, thread);
+            last_frame.save_state();
+
+            if i < frames.len() - 1 {
+                let mut new_frame = last_frame.clone(texture);
+                new_frame.render_screen(&mut handle.begin_drawing(thread), thread);
+                new_frame.render_miniature(handle, thread);
+                new_frame.save_state();
+
+                animation.main_texture = new_frame.texture.clone();
+                animation.selected_frame = animation.frames.len();
+                animation.frames.push(new_frame);
+                last_frame = animation.frames.last_mut().unwrap();
+            }
+        }
+
+        animation
     }
 }

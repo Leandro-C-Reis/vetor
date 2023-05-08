@@ -1,9 +1,9 @@
 #![allow(warnings)]
 
+mod archives;
 mod figure;
 mod framerate;
 mod icons;
-mod imports;
 mod maths;
 mod util;
 mod window;

@@ -1,11 +1,13 @@
 use super::util::button::Button;
 use crate::{
+    archives::export_raw_figure,
+    cstr,
     figure::{edge::*, *},
     icons::VetorIcons,
     maths::*,
 };
 use raylib::{prelude::*, texture::RenderTexture2D};
-use std::{fs, path::Path};
+use std::{ffi::CString, fs, path::Path};
 
 pub struct Edit {
     figure: Figure,
@@ -23,6 +25,8 @@ pub struct Edit {
     circle_fill: Button,
     root: Button,
     format: Button,
+
+    save_figure: Button,
 }
 
 impl Edit {
@@ -57,6 +61,7 @@ impl Edit {
             sidebar_width,
             figure,
             framebuffer: texture,
+            save_figure: Button::new(start.add(rvec2(5, 260))),
         }
     }
 
@@ -254,6 +259,10 @@ impl Edit {
         if !self.figure.pressed && handle.is_mouse_button_up(MouseButton::MOUSE_BUTTON_LEFT) {
             self.figure.should_update = true;
         }
+
+        if self.save_figure.activated {
+            export_raw_figure("unnamed.raw.fig", self.figure.clone());
+        }
     }
 
     pub fn draw(&mut self, handle: &mut RaylibDrawHandle, thread: &RaylibThread) {
@@ -289,36 +298,39 @@ impl Edit {
         );
 
         if self.circle.text.is_none() {
-            self.circle.set_icon(handle, VetorIcons::ICON_CIRCLE)
+            self.circle.set_icon(handle, VetorIcons::ICON_CIRCLE);
         }
         if self.insert.text.is_none() {
-            self.insert.set_icon(handle, VetorIcons::ICON_LINE)
+            self.insert.set_icon(handle, VetorIcons::ICON_LINE);
         }
         if self.hexagon.text.is_none() {
-            self.hexagon.set_icon(handle, VetorIcons::ICON_HEXAGON)
+            self.hexagon.set_icon(handle, VetorIcons::ICON_HEXAGON);
         }
         if self.copy.text.is_none() {
-            self.copy.set_icon(handle, VetorIcons::ICON_COPY)
+            self.copy.set_icon(handle, VetorIcons::ICON_COPY);
         }
         if self.toggle_type.text.is_none() {
             self.toggle_type
-                .set_icon(handle, VetorIcons::ICON_CIRCLE_LINED)
+                .set_icon(handle, VetorIcons::ICON_CIRCLE_LINED);
         }
         if self.delete.text.is_none() {
-            self.delete.set_icon(handle, VetorIcons::ICON_CROSS_BOLD)
+            self.delete.set_icon(handle, VetorIcons::ICON_CROSS_BOLD);
         }
         if self.divide.text.is_none() {
-            self.divide.set_icon(handle, VetorIcons::ICON_DIVIDE)
+            self.divide.set_icon(handle, VetorIcons::ICON_DIVIDE);
         }
         if self.circle_fill.text.is_none() {
             self.circle_fill
-                .set_icon(handle, VetorIcons::ICON_UNDEFINED)
+                .set_icon(handle, VetorIcons::ICON_UNDEFINED);
         }
         if self.root.text.is_none() {
-            self.root.set_icon(handle, VetorIcons::ICON_ROOT)
+            self.root.set_icon(handle, VetorIcons::ICON_ROOT);
         }
         if self.format.text.is_none() {
-            self.format.set_icon(handle, VetorIcons::ICON_VERTEX_FORMAT)
+            self.format.set_icon(handle, VetorIcons::ICON_VERTEX_FORMAT);
+        }
+        if self.save_figure.text.is_none() {
+            self.save_figure.text = Some(cstr!("Salvar"));
         }
 
         for btn in [
@@ -355,6 +367,16 @@ impl Edit {
                 self.btn_pressed = false;
             }
         }
+
+        self.save_figure.activated = handle.gui_button(
+            rrect(
+                self.save_figure.start.x,
+                self.save_figure.start.y,
+                self.sidebar_width - 10.0,
+                30,
+            ),
+            Some(self.save_figure.text.clone().unwrap().as_c_str()),
+        );
         // ===== END Drawing sidebar edit menu =====
     }
 }

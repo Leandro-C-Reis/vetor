@@ -1,6 +1,6 @@
 pub mod edge;
 use self::edge::{Edge, EdgeDrawOption, EdgeFormat};
-use crate::{log, window};
+use crate::{log, maths::Vector2Maths, window};
 use raylib::{
     prelude::{RaylibRenderTexture2D, *},
     texture::RenderTexture2D,
@@ -16,7 +16,7 @@ enum FigMode {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Figure {
-    tree: Vec<Edge>,
+    pub tree: Vec<Edge>,
     mode: FigMode,
     pub should_update: bool,
     pub draw_option: EdgeDrawOption,
@@ -184,6 +184,7 @@ impl Figure {
         self.tmp_edge = Some(edge);
     }
 
+    /// Map and generate a static figure state
     pub fn scan(&self) -> HashMap<usize, (Vector2, Vector2)> {
         let mut compare_map = HashMap::new();
 
@@ -194,12 +195,22 @@ impl Figure {
         compare_map
     }
 
+    /// Load static state into Figure
     pub fn load_state(&mut self, diff: HashMap<usize, (Vector2, Vector2)>) {
         for (index, vertex) in diff.iter() {
             let mut edge = &mut self.tree[*index];
             edge.start = vertex.0;
             edge.end = vertex.1;
             edge.update_angle();
+        }
+    }
+
+    pub fn center_to(&mut self, center: Vector2) {
+        let diff = self.tree[0].start.sub(center);
+
+        for edge in &mut self.tree {
+            edge.start = edge.start.sub(diff);
+            edge.end = edge.end.sub(diff);
         }
     }
 
