@@ -9,10 +9,9 @@ use crate::{
     maths::*,
 };
 use raylib::{
-    ffi::{CheckCollisionPointRec, ImageBlurGaussian},
+    ffi::{CheckCollisionPointRec, ImageBlurGaussian, WaitTime},
     prelude::*,
 };
-use regex::Regex;
 use std::{
     borrow::{Borrow, BorrowMut},
     cell::RefCell,
@@ -32,8 +31,12 @@ pub struct Animation {
     frame_scroll: f32,
     frame_position: Vector2,
     sidebar: Rectangle,
-    sidebar_play: Button,
-    save: Button,
+    save_frame: Button,
+    save_animation: Button,
+    // Play Animation
+    play: Button,
+    previous_time: f64,
+    framerate: f32,
 }
 
 impl Animation {
@@ -59,8 +62,11 @@ impl Animation {
         let mut animation = Animation {
             selected_frame: 0,
             frame_scroll: 0.0,
-            sidebar_play: Button::new(rvec2(sidebar.x, sidebar.y).add(rvec2(10, 10))),
-            save: Button::new(rvec2(sidebar.x, sidebar.y).add(rvec2(10, 50))),
+            previous_time: 0.0,
+            framerate: 5.0,
+            save_frame: Button::new(rvec2(sidebar.x, sidebar.y).add(rvec2(10, 10))),
+            save_animation: Button::new(rvec2(sidebar.x, sidebar.y).add(rvec2(10, 50))),
+            play: Button::new(rvec2(sidebar.x, sidebar.y).add(rvec2(10, 90))),
             main_texture: first_frame.texture.clone(),
             figures: vec![],
             frames: vec![first_frame],
@@ -68,8 +74,9 @@ impl Animation {
             frame_position,
         };
 
-        animation.sidebar_play.text = Some(cstr!("Add Frame"));
-        animation.save.text = Some(cstr!("Salvar"));
+        animation.save_frame.text = Some(cstr!("Add Frame"));
+        animation.save_animation.text = Some(cstr!("Exportar"));
+        animation.play.text = Some(cstr!("Play"));
         animation.push_figure(figure.clone());
         animation.push_figure(figure);
         animation.update(handle, thread);
@@ -79,6 +86,10 @@ impl Animation {
     }
 
     pub fn update(&mut self, mut handle: &mut RaylibHandle, thread: &RaylibThread) {
+        if self.play.activated {
+            return self.play(handle, thread);
+        }
+
         if handle.is_key_pressed(KeyboardKey::KEY_DELETE) {
             self.remove_frame();
         }
@@ -120,11 +131,11 @@ impl Animation {
             frame.enable_all();
         }
 
-        if self.sidebar_play.activated {
+        if self.save_frame.activated {
             self.push_frame(handle, thread);
         }
 
-        if self.save.activated {
+        if self.save_animation.activated {
             self.save_raw("./src/assets/animations/unnamed.raw.anim");
         }
 
@@ -186,6 +197,8 @@ impl Animation {
             Color::RAYWHITE.fade(1.0),
         );
 
+        drop(main_texture);
+
         // Draw sidebar
         {
             self.sidebar.height = draw_handle.get_screen_height() as f32 - self.sidebar.y;
@@ -198,25 +211,62 @@ impl Animation {
                 ) as u32),
             );
 
-            self.sidebar_play.activated = draw_handle.gui_button(
+            self.save_frame.activated = draw_handle.gui_button(
                 rrect(
-                    self.sidebar_play.start.x,
-                    self.sidebar_play.start.y,
+                    self.save_frame.start.x,
+                    self.save_frame.start.y,
                     self.sidebar.width - 20.0,
                     30,
                 ),
-                Some(self.sidebar_play.text.clone().unwrap().as_c_str()),
+                Some(self.save_frame.text.clone().unwrap().as_c_str()),
             );
 
-            self.save.activated = draw_handle.gui_button(
+            self.save_animation.activated = draw_handle.gui_button(
                 rrect(
-                    self.save.start.x,
-                    self.save.start.y,
+                    self.save_animation.start.x,
+                    self.save_animation.start.y,
                     self.sidebar.width - 20.0,
                     30,
                 ),
-                Some(self.save.text.clone().unwrap().as_c_str()),
+                Some(self.save_animation.text.clone().unwrap().as_c_str()),
             );
+
+            draw_handle.gui_set_style(
+                GuiControl::TOGGLE,
+                GuiControlProperty::TEXT_ALIGNMENT as i32,
+                GuiTextAlignment::TEXT_ALIGN_CENTER as i32,
+            );
+
+            let mut play_toggle = self.play.activated;
+            self.play.activated = draw_handle.gui_toggle(
+                rrect(
+                    self.play.start.x,
+                    self.play.start.y,
+                    self.sidebar.width - 20.0,
+                    30,
+                ),
+                Some(self.play.text.clone().unwrap().as_c_str()),
+                self.play.activated,
+            );
+
+            play_toggle = self.play.activated != play_toggle;
+
+            if play_toggle {
+                if self.play.activated {
+                    for figure in &self.figures {
+                        figure.try_borrow_mut().ok().unwrap().draw_option.point = false;
+                    }
+
+                    self.previous_time = draw_handle.get_time();
+                    self.select_frame(0);
+                } else {
+                    for figure in &self.figures {
+                        figure.try_borrow_mut().ok().unwrap().draw_option.point = true;
+                    }
+
+                    self.select_frame((self.frames.len() - 1) as usize);
+                }
+            }
         }
 
         // Draw animation frames
@@ -293,18 +343,17 @@ impl Animation {
                 );
             }
 
-            // NOTE: Maybe the slider width will be change dynamically
-            scissor.gui_set_style(
-                GuiControl::SLIDER,
-                GuiSliderProperty::SLIDER_WIDTH as i32,
-                300,
-            );
-
             // Avoid draw scrollbar when frames is less then width
             if max_width > width {
                 let max_value = (frame_width * frame_count) as f32
                     + (frame_gap * (frame_count - 1)) as f32
                     - width as f32;
+
+                scissor.gui_set_style(
+                    GuiControl::SLIDER,
+                    GuiSliderProperty::SLIDER_WIDTH as i32,
+                    (width - (max_width - width)).max(50),
+                );
 
                 // Fit frame scroll at mouse scrolling
                 if panel_content.check_collision_point_rec(scissor.get_mouse_position()) {
@@ -381,6 +430,8 @@ impl Animation {
             .ok()
             .unwrap();
 
+        frame.chage_figure_draw(false);
+
         let mut new_frame = frame.clone(texture);
         new_frame.render_screen(&mut handle.begin_drawing(thread), thread);
         new_frame.render_miniature(handle, thread);
@@ -388,6 +439,8 @@ impl Animation {
         frame.is_selected = false;
         frame.render_miniature(handle, thread);
         frame.save_state();
+
+        frame.chage_figure_draw(true);
 
         self.main_texture = new_frame.texture.clone();
         self.selected_frame = self.frames.len();
@@ -402,6 +455,22 @@ impl Animation {
         frame.is_selected = true;
         self.main_texture = frame.texture.clone();
         self.frame_scroll = 0.0;
+    }
+
+    fn play(&mut self, handle: &mut RaylibHandle, thread: &RaylibThread) {
+        let current_time = handle.get_time();
+        let frame_time = current_time - self.previous_time;
+        let wait_time: f64 = (1.0 / self.framerate as f64) - frame_time;
+
+        if wait_time <= 0.0 {
+            let index = if self.selected_frame == self.frames.len() - 1 {
+                0
+            } else {
+                self.selected_frame + 1
+            };
+            self.select_frame(index);
+            self.previous_time = current_time;
+        }
     }
 
     /// Save animation into a file with raw format
@@ -466,6 +535,7 @@ impl Animation {
         }
     }
 
+    /// Load animation scenes from raw file
     pub fn from_raw(file: &str, handle: &mut RaylibHandle, thread: &RaylibThread) -> Animation {
         let file = fs::read_to_string(file).ok().unwrap();
         let split: Vec<_> = file.split("@Frame").collect();
@@ -529,25 +599,25 @@ impl Animation {
                 });
             }
 
-            let texture = handle
-                .load_render_texture(
-                    thread,
-                    last_frame.texture.try_borrow().ok().unwrap().width() as u32,
-                    last_frame.texture.try_borrow().ok().unwrap().height() as u32,
-                )
-                .ok()
-                .unwrap();
-
-            last_frame.is_selected = false;
+            last_frame.save_state();
+            last_frame.chage_figure_draw(false);
             last_frame.render_screen(&mut handle.begin_drawing(thread), thread);
             last_frame.render_miniature(handle, thread);
-            last_frame.save_state();
+            last_frame.chage_figure_draw(true);
+            last_frame.render_screen(&mut handle.begin_drawing(thread), thread);
 
             if i < frames.len() - 1 {
+                let texture = handle
+                    .load_render_texture(
+                        thread,
+                        last_frame.texture.try_borrow().ok().unwrap().width() as u32,
+                        last_frame.texture.try_borrow().ok().unwrap().height() as u32,
+                    )
+                    .ok()
+                    .unwrap();
+
                 let mut new_frame = last_frame.clone(texture);
-                new_frame.render_screen(&mut handle.begin_drawing(thread), thread);
-                new_frame.render_miniature(handle, thread);
-                new_frame.save_state();
+                last_frame.is_selected = false;
 
                 animation.main_texture = new_frame.texture.clone();
                 animation.selected_frame = animation.frames.len();

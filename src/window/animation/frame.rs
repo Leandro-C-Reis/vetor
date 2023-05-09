@@ -84,4 +84,10 @@ impl Frame {
             anim.moved_edges = anim.figure.borrow().scan();
         }
     }
+
+    pub fn chage_figure_draw(&mut self, point: bool) {
+        for state in &mut self.figure_animation {
+            state.figure.borrow_mut().draw_option.point = point;
+        }
+    }
 }
