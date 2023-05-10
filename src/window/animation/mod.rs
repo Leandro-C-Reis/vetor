@@ -6,6 +6,7 @@ use crate::{
     archives::{self, figure_to_raw},
     cstr,
     figure::Figure,
+    icons::VetorIcons,
     maths::*,
 };
 use raylib::{
@@ -18,10 +19,25 @@ use std::{
     cmp::Ordering,
     collections::HashMap,
     ffi::CString,
+    fmt::Display,
     fs::{self, File},
     io::{Read, Write},
+    path::Path,
+    process::{Command, Stdio},
     rc::Rc,
 };
+
+#[derive(Debug, Clone, Copy)]
+enum ExportFormat {
+    MP4 = 0,
+    GIF = 1,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum SaveFormat {
+    RAW = 0,
+    COMPRESSED = 1,
+}
 
 pub struct Animation {
     figures: Vec<Rc<RefCell<Figure>>>,
@@ -37,6 +53,9 @@ pub struct Animation {
     play: Button,
     previous_time: f64,
     framerate: f32,
+    // Export Dialog
+    export_format: ExportFormat,
+    save_format: SaveFormat,
 }
 
 impl Animation {
@@ -59,14 +78,17 @@ impl Animation {
             first_frame.texture.try_borrow().ok().unwrap().height() / 2,
         ));
 
+        let start = rvec2(sidebar.x, sidebar.y).add(rvec2(15, 20));
         let mut animation = Animation {
+            export_format: ExportFormat::GIF,
+            save_format: SaveFormat::RAW,
             selected_frame: 0,
             frame_scroll: 0.0,
             previous_time: 0.0,
             framerate: 5.0,
-            save_frame: Button::new(rvec2(sidebar.x, sidebar.y).add(rvec2(10, 10))),
-            save_animation: Button::new(rvec2(sidebar.x, sidebar.y).add(rvec2(10, 50))),
-            play: Button::new(rvec2(sidebar.x, sidebar.y).add(rvec2(10, 90))),
+            save_frame: Button::new(rvec2(sidebar.x, sidebar.y).add(rvec2(10, 80))),
+            save_animation: Button::dynamic_new(0, 0, start, sidebar.width - 30.0),
+            play: Button::dynamic_new(0, 1, start, sidebar.width - 30.0),
             main_texture: first_frame.texture.clone(),
             figures: vec![],
             frames: vec![first_frame],
@@ -75,8 +97,14 @@ impl Animation {
         };
 
         animation.save_frame.text = Some(cstr!("Add Frame"));
-        animation.save_animation.text = Some(cstr!("Exportar"));
-        animation.play.text = Some(cstr!("Play"));
+        animation.save_animation.set_icon(
+            &mut handle.begin_drawing(thread),
+            VetorIcons::ICON_FILE_EXPORT,
+        );
+        animation.play.set_icon(
+            &mut handle.begin_drawing(thread),
+            VetorIcons::ICON_PLAYER_PLAY,
+        );
         animation.push_figure(figure.clone());
         animation.push_figure(figure);
         animation.update(handle, thread);
@@ -88,6 +116,10 @@ impl Animation {
     pub fn update(&mut self, mut handle: &mut RaylibHandle, thread: &RaylibThread) {
         if self.play.activated {
             return self.play(handle, thread);
+        }
+
+        if self.save_animation.activated {
+            return;
         }
 
         if handle.is_key_pressed(KeyboardKey::KEY_DELETE) {
@@ -133,10 +165,6 @@ impl Animation {
 
         if self.save_frame.activated {
             self.push_frame(handle, thread);
-        }
-
-        if self.save_animation.activated {
-            self.save_raw("./src/assets/animations/unnamed.raw.anim");
         }
 
         if handle.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT) {
@@ -211,6 +239,22 @@ impl Animation {
                 ) as u32),
             );
 
+            draw_handle.gui_group_box(
+                rrect(
+                    self.sidebar.x + 10.0,
+                    self.sidebar.y + 10.0,
+                    self.sidebar.width - 20.0,
+                    self.sidebar.y + 30.0,
+                ),
+                Some(rstr!("Controles")),
+            );
+
+            draw_handle.gui_set_style(
+                GuiControl::TOGGLE,
+                GuiControlProperty::TEXT_ALIGNMENT as i32,
+                GuiTextAlignment::TEXT_ALIGN_CENTER as i32,
+            );
+
             self.save_frame.activated = draw_handle.gui_button(
                 rrect(
                     self.save_frame.start.x,
@@ -221,30 +265,20 @@ impl Animation {
                 Some(self.save_frame.text.clone().unwrap().as_c_str()),
             );
 
-            self.save_animation.activated = draw_handle.gui_button(
+            self.save_animation.activated = draw_handle.gui_toggle(
                 rrect(
                     self.save_animation.start.x,
                     self.save_animation.start.y,
-                    self.sidebar.width - 20.0,
+                    self.save_animation.len,
                     30,
                 ),
                 Some(self.save_animation.text.clone().unwrap().as_c_str()),
-            );
-
-            draw_handle.gui_set_style(
-                GuiControl::TOGGLE,
-                GuiControlProperty::TEXT_ALIGNMENT as i32,
-                GuiTextAlignment::TEXT_ALIGN_CENTER as i32,
+                self.save_animation.activated,
             );
 
             let mut play_toggle = self.play.activated;
             self.play.activated = draw_handle.gui_toggle(
-                rrect(
-                    self.play.start.x,
-                    self.play.start.y,
-                    self.sidebar.width - 20.0,
-                    30,
-                ),
+                rrect(self.play.start.x, self.play.start.y, self.play.len, 30),
                 Some(self.play.text.clone().unwrap().as_c_str()),
                 self.play.activated,
             );
@@ -387,6 +421,87 @@ impl Animation {
                 );
             }
         }
+
+        if self.save_animation.activated {
+            self.draw_export_dialog(draw_handle, thread);
+        }
+    }
+
+    fn draw_export_dialog(&mut self, draw_handle: &mut RaylibDrawHandle, thread: &RaylibThread) {
+        let w = draw_handle.get_screen_width();
+        let h = draw_handle.get_screen_height();
+
+        // Draw transparent background
+        draw_handle.draw_rectangle(
+            (self.sidebar.x + self.sidebar.width) as i32,
+            self.sidebar.y as i32,
+            w,
+            h,
+            Color::get_color(draw_handle.gui_get_style(
+                GuiControl::DEFAULT,
+                GuiControlProperty::BASE_COLOR_NORMAL as i32,
+            ) as u32)
+            .fade(0.3),
+        );
+
+        let dialog_rect = rrect((w / 2) - 150, (h / 2) - 100, 300, 136);
+
+        self.save_animation.activated =
+            !draw_handle.gui_window_box(dialog_rect, Some(rstr!("Exportar como:")));
+
+        let export = draw_handle.gui_combo_box(
+            rrect(dialog_rect.x + 25.0, dialog_rect.y + 40.0, 120, 30),
+            Some(rstr!("mp4;gif")),
+            self.export_format as i32,
+        );
+
+        self.export_format = match export {
+            0 => ExportFormat::MP4,
+            1 => ExportFormat::GIF,
+            _ => ExportFormat::MP4,
+        };
+
+        if draw_handle.gui_button(
+            rrect(dialog_rect.x + 25.0, dialog_rect.y + 80.0, 120, 30),
+            Some(rstr!("Exportar")),
+        ) {
+            match self.export_format {
+                ExportFormat::GIF => {
+                    self.export("unnamed", "gif");
+                }
+                ExportFormat::MP4 => {
+                    self.export("unnamed", "mp4");
+                }
+            }
+
+            self.save_animation.activated = false;
+        }
+
+        let save = draw_handle.gui_combo_box(
+            rrect(dialog_rect.x + 154.0, dialog_rect.y + 40.0, 120, 30),
+            Some(rstr!("raw;compress")),
+            self.save_format as i32,
+        );
+
+        self.save_format = match save {
+            0 => SaveFormat::RAW,
+            1 => SaveFormat::COMPRESSED,
+            _ => SaveFormat::COMPRESSED,
+        };
+
+        if draw_handle.gui_button(
+            rrect(dialog_rect.x + 154.0, dialog_rect.y + 80.0, 120, 30),
+            Some(rstr!("Salvar")),
+        ) {
+            match self.save_format {
+                SaveFormat::RAW => {
+                    self.save_raw("./src/assets/animations/unnamed.raw.anim");
+                }
+                SaveFormat::COMPRESSED => (),
+            }
+
+            self.save_animation.activated = false;
+        }
     }
 
     pub fn push_figure(&mut self, figure: Figure) {
@@ -473,6 +588,7 @@ impl Animation {
         }
     }
 
+    // External files:
     /// Save animation into a file with raw format
     pub fn save_raw(&mut self, file: &str) {
         let mut file = File::create(file).ok().unwrap();
@@ -627,5 +743,36 @@ impl Animation {
         }
 
         animation
+    }
+
+    pub fn export(&mut self, file: &str, format: &str) {
+        let filename = &format!("{}.{}", file, format);
+        fs::remove_file(filename).err();
+
+        let mut ffmpeg = Command::new("ffmpeg")
+            .args(["-framerate", &self.framerate.to_string(), "-i", "-"])
+            .args([filename])
+            .stdin(Stdio::piped())
+            .spawn()
+            .expect("Cannot spawn ffmpeg command");
+
+        let stdin = ffmpeg.stdin.as_mut().unwrap();
+
+        // NOTE: I don't like the ideia of saving image into a file,
+        // but this works now and can it be refactored latter.
+        let tmp_file = "tmp.png";
+
+        for frame in &mut self.frames {
+            let texture = frame.texture.try_borrow().ok().unwrap();
+            let mut image = texture.load_image().unwrap();
+            image.flip_vertical();
+            image.export_image(tmp_file);
+            stdin.write_all(fs::read(tmp_file).ok().unwrap().as_slice());
+        }
+
+        fs::remove_file(tmp_file);
+
+        stdin.flush().expect("Cannot flush ffmpeg stdin");
+        ffmpeg.wait();
     }
 }
