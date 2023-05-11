@@ -9,6 +9,7 @@ use crate::{
     icons::VetorIcons,
     maths::*,
 };
+use native_dialog::FileDialog;
 use raylib::{
     ffi::{CheckCollisionPointRec, ImageBlurGaussian, WaitTime},
     prelude::*,
@@ -36,7 +37,7 @@ enum ExportFormat {
 #[derive(Debug, Clone, Copy)]
 enum SaveFormat {
     RAW = 0,
-    COMPRESSED = 1,
+    GZIP = 1,
 }
 
 pub struct Animation {
@@ -49,6 +50,7 @@ pub struct Animation {
     sidebar: Rectangle,
     save_frame: Button,
     save_animation: Button,
+    add_figure: Button,
     // Play Animation
     play: Button,
     previous_time: f64,
@@ -71,7 +73,7 @@ impl Animation {
         );
         first_frame.is_selected = true;
 
-        let mut figure = archives::import_raw_figure("men.raw.fig");
+        let mut figure = archives::import_raw_figure("./src/assets/figures/men.vfr");
 
         figure.center_to(rvec2(
             first_frame.texture.try_borrow().ok().unwrap().width() / 2,
@@ -86,7 +88,8 @@ impl Animation {
             frame_scroll: 0.0,
             previous_time: 0.0,
             framerate: 5.0,
-            save_frame: Button::new(rvec2(sidebar.x, sidebar.y).add(rvec2(10, 80))),
+            add_figure: Button::new(rvec2(sidebar.x, sidebar.y).add(rvec2(10, 160))),
+            save_frame: Button::new(rvec2(sidebar.x, sidebar.y).add(rvec2(10, 200))),
             save_animation: Button::dynamic_new(0, 0, start, sidebar.width - 30.0),
             play: Button::dynamic_new(0, 1, start, sidebar.width - 30.0),
             main_texture: first_frame.texture.clone(),
@@ -120,6 +123,23 @@ impl Animation {
 
         if self.save_animation.activated {
             return;
+        }
+
+        if self.add_figure.activated {
+            let path = FileDialog::new()
+                .set_location("./src/assets/figures")
+                .add_filter("Vetor Figures", &["vfr"])
+                .show_open_single_file()
+                .expect("Cannot load file with filesytem");
+
+            if path.is_some() {
+                let mut figure = archives::import_raw_figure(path.unwrap().to_str().unwrap());
+                figure.center_to(rvec2(
+                    handle.get_screen_width() / 2,
+                    handle.get_screen_height() / 2,
+                ));
+                self.push_figure(figure);
+            }
         }
 
         if handle.is_key_pressed(KeyboardKey::KEY_DELETE) {
@@ -244,7 +264,7 @@ impl Animation {
                     self.sidebar.x + 10.0,
                     self.sidebar.y + 10.0,
                     self.sidebar.width - 20.0,
-                    self.sidebar.y + 30.0,
+                    self.sidebar.y + 70.0,
                 ),
                 Some(rstr!("Controles")),
             );
@@ -254,6 +274,37 @@ impl Animation {
                 GuiControlProperty::TEXT_ALIGNMENT as i32,
                 GuiTextAlignment::TEXT_ALIGN_CENTER as i32,
             );
+
+            draw_handle.gui_set_style(
+                GuiControl::SLIDER,
+                GuiSliderProperty::SLIDER_PADDING as i32,
+                0,
+            );
+
+            draw_handle.gui_set_style(
+                GuiControl::SLIDER,
+                GuiSliderProperty::SLIDER_WIDTH as i32,
+                10,
+            );
+
+            draw_handle.gui_label(
+                rrect(15, self.sidebar.y + 55.0, self.sidebar.width - 30.0, 30),
+                Some(cstr!(format!("FPS {}", self.framerate)).as_c_str()),
+            );
+
+            self.framerate = draw_handle.gui_slider(
+                rrect(
+                    self.sidebar.x + 15.0,
+                    self.sidebar.y + 85.0,
+                    self.sidebar.width - 30.0,
+                    20.0,
+                ),
+                None,
+                None,
+                self.framerate,
+                1.0,
+                30.0,
+            ) as i32 as f32;
 
             self.save_frame.activated = draw_handle.gui_button(
                 rrect(
@@ -274,7 +325,7 @@ impl Animation {
                 ),
                 Some(self.save_animation.text.clone().unwrap().as_c_str()),
                 self.save_animation.activated,
-            );
+            ) && !self.play.activated;
 
             let mut play_toggle = self.play.activated;
             self.play.activated = draw_handle.gui_toggle(
@@ -301,6 +352,21 @@ impl Animation {
                     self.select_frame((self.frames.len() - 1) as usize);
                 }
             }
+
+            draw_handle.gui_button(
+                rrect(10, self.sidebar.y + 120.0, self.sidebar.width - 20.0, 30),
+                Some(rstr!("Background")),
+            );
+
+            self.add_figure.activated = draw_handle.gui_button(
+                rrect(
+                    self.add_figure.start.x,
+                    self.add_figure.start.y,
+                    self.sidebar.width - 20.0,
+                    30,
+                ),
+                Some(rstr!("Add Figure")),
+            );
         }
 
         // Draw animation frames
@@ -473,20 +539,21 @@ impl Animation {
                     self.export("unnamed", "mp4");
                 }
             }
+            println!();
 
             self.save_animation.activated = false;
         }
 
         let save = draw_handle.gui_combo_box(
             rrect(dialog_rect.x + 154.0, dialog_rect.y + 40.0, 120, 30),
-            Some(rstr!("raw;compress")),
+            Some(rstr!("raw;gzip")),
             self.save_format as i32,
         );
 
         self.save_format = match save {
             0 => SaveFormat::RAW,
-            1 => SaveFormat::COMPRESSED,
-            _ => SaveFormat::COMPRESSED,
+            1 => SaveFormat::GZIP,
+            _ => SaveFormat::GZIP,
         };
 
         if draw_handle.gui_button(
@@ -495,9 +562,9 @@ impl Animation {
         ) {
             match self.save_format {
                 SaveFormat::RAW => {
-                    self.save_raw("./src/assets/animations/unnamed.raw.anim");
+                    self.save_raw("unnamed.var");
                 }
-                SaveFormat::COMPRESSED => (),
+                SaveFormat::GZIP => (),
             }
 
             self.save_animation.activated = false;
@@ -591,7 +658,17 @@ impl Animation {
     // External files:
     /// Save animation into a file with raw format
     pub fn save_raw(&mut self, file: &str) {
-        let mut file = File::create(file).ok().unwrap();
+        let path = FileDialog::new()
+            .set_filename(file)
+            .add_filter("Vetor Animation Raw", &["var"])
+            .show_save_single_file()
+            .expect("Cannot save file");
+
+        if path.is_none() {
+            return;
+        }
+
+        let mut file = File::create(path.unwrap()).ok().unwrap();
 
         // Save Figures
         for (i, figRef) in self.figures.iter().enumerate() {
@@ -747,11 +824,21 @@ impl Animation {
 
     pub fn export(&mut self, file: &str, format: &str) {
         let filename = &format!("{}.{}", file, format);
-        fs::remove_file(filename).err();
+        let path = FileDialog::new()
+            .set_filename(filename)
+            .add_filter("Video", &["gif", "mp4"])
+            .show_save_single_file()
+            .expect("Cannot save file");
+
+        if path.is_none() {
+            return;
+        }
+
+        fs::remove_file(path.clone().unwrap()).err();
 
         let mut ffmpeg = Command::new("ffmpeg")
             .args(["-framerate", &self.framerate.to_string(), "-i", "-"])
-            .args([filename])
+            .args([path.unwrap().to_str().unwrap()])
             .stdin(Stdio::piped())
             .spawn()
             .expect("Cannot spawn ffmpeg command");

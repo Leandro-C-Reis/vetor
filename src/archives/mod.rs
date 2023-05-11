@@ -15,8 +15,8 @@ pub struct Point {
 }
 
 pub fn import_raw_figure(file: &str) -> Figure {
-    let file = fs::read_to_string("./src/assets/figures/".to_owned() + file)
-        .expect(&format!("Should be able to read the file: {}", file));
+    let file =
+        fs::read_to_string(file).expect(&format!("Should be able to read the file: {}", file));
     raw_to_figure(file.as_str())
 }
 

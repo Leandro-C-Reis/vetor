@@ -28,7 +28,7 @@ pub struct Window {
 
 impl Window {
     pub fn new(handle: &mut RaylibHandle, thread: &RaylibThread) -> Window {
-        let mut figure = archives::import_raw_figure("men.raw.fig");
+        let mut figure = archives::import_raw_figure("./src/assets/figures/men.vfr");
 
         figure.center_to(rvec2(
             handle.get_screen_width() / 2,
@@ -46,7 +46,7 @@ impl Window {
 
         let edit_tab = Rc::new(RefCell::new(Tab::Edit(Edit::new(figure.clone(), texture))));
         let animation_tab = Rc::new(RefCell::new(Tab::Animation(Animation::from_raw(
-            "./src/assets/animations/unnamed.raw.anim",
+            "./src/assets/animations/unnamed.var",
             handle,
             thread,
         ))));

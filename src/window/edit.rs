@@ -261,7 +261,7 @@ impl Edit {
         }
 
         if self.save_figure.activated {
-            export_raw_figure("unnamed.raw.fig", self.figure.clone());
+            export_raw_figure("unnamed.vfr", self.figure.clone());
         }
     }
 

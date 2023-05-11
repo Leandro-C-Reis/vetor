@@ -2,7 +2,6 @@
 
 mod archives;
 mod figure;
-mod framerate;
 mod icons;
 mod maths;
 mod util;
