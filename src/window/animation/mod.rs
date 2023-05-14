@@ -11,7 +11,7 @@ use crate::{
 };
 use native_dialog::FileDialog;
 use raylib::{
-    ffi::{CheckCollisionPointRec, ImageBlurGaussian, WaitTime},
+    ffi::{CheckCollisionPointRec, GetMonitorHeight, GetMonitorWidth, ImageBlurGaussian, WaitTime},
     prelude::*,
 };
 use std::{
@@ -40,13 +40,28 @@ enum SaveFormat {
     GZIP = 1,
 }
 
+struct Caroussel {
+    value: f32,
+    x: i32,
+    width: i32,
+    display_gap: i32,
+    display_width: i32,
+    display_height: i32,
+    scrollbar_height: i32,
+}
+
 pub struct Animation {
     figures: Vec<Rc<RefCell<Figure>>>,
     frames: Vec<Frame>,
     selected_frame: usize,
+    // Main
+    previous_mouse_pos: Vector2,
     main_texture: Rc<RefCell<RenderTexture2D>>,
-    frame_scroll: f32,
-    frame_position: Vector2,
+    main_scroll: Vector2,
+    main_position: Vector2,
+    // Frame scroll
+    frame_caroussel: Caroussel,
+    // Sidebar
     sidebar: Rectangle,
     save_frame: Button,
     save_animation: Button,
@@ -68,8 +83,8 @@ impl Animation {
         let mut first_frame = Frame::new(
             handle,
             thread,
-            handle.get_screen_width() as u32 - frame_position.x as u32,
-            handle.get_screen_height() as u32 - 100 - frame_position.y as u32 as u32,
+            unsafe { GetMonitorWidth(0) } as u32,
+            unsafe { GetMonitorHeight(0) } as u32,
         );
         first_frame.is_selected = true;
 
@@ -85,7 +100,15 @@ impl Animation {
             export_format: ExportFormat::GIF,
             save_format: SaveFormat::RAW,
             selected_frame: 0,
-            frame_scroll: 0.0,
+            frame_caroussel: Caroussel {
+                value: 0.0,
+                x: (sidebar.x + sidebar.width) as i32,
+                width: handle.get_screen_width() - sidebar.width as i32,
+                display_gap: 10,
+                display_width: 150,
+                display_height: 100,
+                scrollbar_height: 15,
+            },
             previous_time: 0.0,
             framerate: 5.0,
             add_figure: Button::new(rvec2(sidebar.x, sidebar.y).add(rvec2(10, 160))),
@@ -93,10 +116,12 @@ impl Animation {
             save_animation: Button::dynamic_new(0, 0, start, sidebar.width - 30.0),
             play: Button::dynamic_new(0, 1, start, sidebar.width - 30.0),
             main_texture: first_frame.texture.clone(),
+            main_scroll: Vector2::zero(),
+            previous_mouse_pos: Vector2::zero(),
             figures: vec![],
             frames: vec![first_frame],
             sidebar,
-            frame_position,
+            main_position: frame_position,
         };
 
         animation.save_frame.text = Some(cstr!("Add Frame"));
@@ -112,7 +137,12 @@ impl Animation {
         animation.push_figure(figure);
         animation.update(handle, thread);
         animation.frames[0].render_screen(&mut handle.begin_drawing(thread), thread);
-        animation.frames[0].render_miniature(handle, thread);
+        animation.frames[0].render_miniature(
+            handle,
+            thread,
+            animation.frame_caroussel.display_width,
+            animation.frame_caroussel.display_height,
+        );
         animation
     }
 
@@ -153,7 +183,7 @@ impl Animation {
         for index in 0..frame.figure_animation.len() {
             match frame.figure_animation[index].figure.try_borrow_mut() {
                 Ok(mut figure) => {
-                    figure.update(handle, self.frame_position);
+                    figure.update(handle, self.main_position.add(self.main_scroll));
                 }
                 _ => (),
             }
@@ -187,35 +217,42 @@ impl Animation {
             self.push_frame(handle, thread);
         }
 
+        self.frame_caroussel.width = handle.get_screen_width() - self.sidebar.width as i32;
         if handle.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT) {
-            let frame_width = 150;
-            let frame_gap = 10;
-            let max_width = (frame_count * frame_width) + (frame_count - 1) * frame_gap;
-            let mut scrollbar_height = 15;
-            let width = handle.get_screen_width() - 80;
-            let height = if max_width < width {
-                scrollbar_height = 0;
-                100
+            let max_width = (frame_count * self.frame_caroussel.display_width)
+                + (frame_count - 1) * self.frame_caroussel.display_gap;
+            let height = if max_width < self.frame_caroussel.width {
+                self.frame_caroussel.display_height
             } else {
-                100 + scrollbar_height
+                self.frame_caroussel.display_height + self.frame_caroussel.scrollbar_height
             };
-            let x = (self.sidebar.x + self.sidebar.width) as i32;
             let y = handle.get_screen_height() - height;
-            let panel_content = rrect(x, y, width, height);
+            let panel_content = rrect(
+                self.frame_caroussel.x,
+                y,
+                self.frame_caroussel.width,
+                height,
+            );
 
             // Draw frames
             for i in 0..frame_count {
-                let moved_content = i * frame_width + i * frame_gap - self.frame_scroll as i32;
+                let moved_content = i * self.frame_caroussel.display_width
+                    + i * self.frame_caroussel.display_gap
+                    - self.frame_caroussel.value as i32;
 
                 // We dont need to render frames out of screen
-                if moved_content < 0 - frame_width {
+                if moved_content < 0 - self.frame_caroussel.display_width {
                     continue;
-                } else if moved_content >= width {
+                } else if moved_content >= self.frame_caroussel.width {
                     break;
                 };
 
-                let frame_rect =
-                    rrect(x + moved_content, y, frame_width, height - scrollbar_height);
+                let frame_rect = rrect(
+                    self.frame_caroussel.x + moved_content,
+                    y,
+                    self.frame_caroussel.display_width,
+                    height - self.frame_caroussel.scrollbar_height,
+                );
                 if unsafe {
                     CheckCollisionPointRec(handle.get_mouse_position().into(), frame_rect.into())
                 } && handle.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT)
@@ -231,21 +268,84 @@ impl Animation {
 
         frame.render_screen(draw_handle, thread);
 
-        let main_texture = self.main_texture.try_borrow().ok().unwrap();
-        // Draw main screen texture
-        draw_handle.draw_texture_rec(
-            main_texture.texture(),
-            rrect(
+        let max_scroll_width = (self.frames.len() as i32 * self.frame_caroussel.display_width)
+            + (self.frames.len() - 1) as i32 * self.frame_caroussel.display_gap;
+
+        // Draw Main Frame
+        {
+            let main_texture = self.main_texture.try_borrow().ok().unwrap();
+            let mut texture_rec = rrect(
                 0,
                 0,
                 main_texture.texture.width,
-                -main_texture.texture.height,
-            ),
-            rvec2(self.sidebar.x + self.sidebar.width, self.sidebar.y),
-            Color::RAYWHITE.fade(1.0),
-        );
+                main_texture.texture.height,
+            );
 
-        drop(main_texture);
+            let main_rec = rrect(
+                self.main_position.x,
+                self.main_position.y,
+                draw_handle.get_screen_width() as f32 - self.sidebar.width,
+                draw_handle.get_screen_height() as f32
+                    - self.main_position.y
+                    - (self.frame_caroussel.display_height as f32
+                        + if max_scroll_width < self.frame_caroussel.width {
+                            0.0
+                        } else {
+                            self.frame_caroussel.scrollbar_height as f32
+                        }),
+            );
+
+            let scissor_rec;
+            (scissor_rec, self.main_scroll) =
+                draw_handle.gui_scroll_panel(main_rec, None, texture_rec, self.main_scroll);
+
+            // Draw main screen texture
+            let mut scissor = draw_handle.begin_scissor_mode(
+                scissor_rec.x as i32,
+                scissor_rec.y as i32,
+                scissor_rec.width as i32,
+                scissor_rec.height as i32,
+            );
+
+            let mouse_pos = scissor.get_mouse_position();
+
+            // Drag background scroll
+            if scissor.is_mouse_button_down(MouseButton::MOUSE_BUTTON_MIDDLE)
+                && scissor_rec.check_collision_point_rec(mouse_pos)
+            {
+                let delta = mouse_pos.sub(self.previous_mouse_pos);
+                self.main_scroll.x += delta.x;
+                self.main_scroll.y += delta.y;
+
+                let max_scroll_x = texture_rec.width - scissor_rec.width;
+                let max_scroll_y = texture_rec.height - scissor_rec.height;
+
+                if self.main_scroll.x > 0.0 {
+                    self.main_scroll.x = 0.0;
+                } else if -self.main_scroll.x > max_scroll_x {
+                    self.main_scroll.x = -max_scroll_x;
+                }
+
+                if self.main_scroll.y > 0.0 {
+                    self.main_scroll.y = 0.0;
+                } else if -self.main_scroll.y > max_scroll_y {
+                    self.main_scroll.y = -max_scroll_y;
+                }
+            }
+
+            texture_rec.x -= self.main_scroll.x;
+            texture_rec.y += self.main_scroll.y;
+            // Invert texture rect height to apply correct perspective
+            texture_rec.height = -texture_rec.height;
+            scissor.draw_texture_rec(
+                main_texture.texture(),
+                texture_rec,
+                self.main_position,
+                Color::RAYWHITE.fade(1.0),
+            );
+
+            self.previous_mouse_pos = mouse_pos;
+        }
 
         // Draw sidebar
         {
@@ -371,21 +471,20 @@ impl Animation {
 
         // Draw animation frames
         {
-            let frame_count = self.frames.len() as i32;
-            let frame_width = 150;
-            let frame_gap = 10;
-            let max_width = (frame_count * frame_width) + (frame_count - 1) * frame_gap;
-            let mut scrollbar_height = 15;
-            let width = draw_handle.get_screen_width() - 80;
-            let height = if max_width < width {
+            let mut scrollbar_height = self.frame_caroussel.scrollbar_height;
+            let height = if max_scroll_width < self.frame_caroussel.width {
                 scrollbar_height = 0;
-                100
+                self.frame_caroussel.display_height
             } else {
-                100 + scrollbar_height
+                self.frame_caroussel.display_height + scrollbar_height
             };
-            let x = (self.sidebar.x + self.sidebar.width) as i32;
             let y = draw_handle.get_screen_height() - height;
-            let panel_content = rrect(x, y, width, height);
+            let panel_content = rrect(
+                self.frame_caroussel.x,
+                y,
+                self.frame_caroussel.width,
+                height,
+            );
 
             // Avoid render out of scissor area
             let mut scissor = draw_handle.begin_scissor_mode(
@@ -408,26 +507,33 @@ impl Animation {
             );
 
             // Draw frames
-            for i in 0..frame_count {
-                let moved_content = i * frame_width + i * frame_gap - self.frame_scroll as i32;
+            for i in 0..self.frames.len() {
+                let moved_content = i as i32 * self.frame_caroussel.display_width
+                    + i as i32 * self.frame_caroussel.display_gap
+                    - self.frame_caroussel.value as i32;
 
                 // We dont need to render frames out of screen
-                if moved_content < 0 - frame_width {
+                if moved_content < 0 - self.frame_caroussel.display_width {
                     continue;
-                } else if moved_content >= width {
+                } else if moved_content >= self.frame_caroussel.width {
                     break;
                 };
 
                 // Draw frame
                 scissor.draw_texture_rec(
                     self.frames[i as usize].miniature.as_ref().unwrap(),
-                    rrect(0, 0, frame_width, height),
-                    rvec2(x + moved_content, y),
+                    rrect(0, 0, self.frame_caroussel.display_width, height),
+                    rvec2(self.frame_caroussel.x + moved_content, y),
                     Color::RAYWHITE.fade(1.0),
                 );
 
                 scissor.draw_rectangle_lines_ex(
-                    rrect(x + moved_content, y, frame_width, height - scrollbar_height),
+                    rrect(
+                        self.frame_caroussel.x + moved_content,
+                        y,
+                        self.frame_caroussel.display_width,
+                        height - scrollbar_height,
+                    ),
                     3.0,
                     if i as usize == self.selected_frame {
                         Color::get_color(scissor.gui_get_style(
@@ -444,44 +550,48 @@ impl Animation {
             }
 
             // Avoid draw scrollbar when frames is less then width
-            if max_width > width {
-                let max_value = (frame_width * frame_count) as f32
-                    + (frame_gap * (frame_count - 1)) as f32
-                    - width as f32;
+            if max_scroll_width > self.frame_caroussel.width {
+                let max_value = (self.frame_caroussel.display_width * self.frames.len() as i32)
+                    as f32
+                    + (self.frame_caroussel.display_gap * (self.frames.len() as i32 - 1)) as f32
+                    - self.frame_caroussel.width as f32;
 
                 scissor.gui_set_style(
                     GuiControl::SLIDER,
                     GuiSliderProperty::SLIDER_WIDTH as i32,
-                    (width - (max_width - width)).max(50),
+                    (self.frame_caroussel.width - (max_scroll_width - self.frame_caroussel.width))
+                        .max(50),
                 );
 
                 // Fit frame scroll at mouse scrolling
                 if panel_content.check_collision_point_rec(scissor.get_mouse_position()) {
-                    self.frame_scroll = if scissor.get_mouse_wheel_move() != 0.0 {
-                        let mut next_move = self.frame_scroll
-                            + scissor.get_mouse_wheel_move() * -frame_width as f32;
+                    self.frame_caroussel.value = if scissor.get_mouse_wheel_move() != 0.0 {
+                        let mut next_move = self.frame_caroussel.value
+                            + scissor.get_mouse_wheel_move()
+                                * -self.frame_caroussel.display_width as f32;
                         if next_move < 0.0 {
                             next_move = 0.0;
-                        } else if next_move > max_value + frame_width as f32 {
+                        } else if next_move > max_value + self.frame_caroussel.display_width as f32
+                        {
                             next_move = max_value;
                         }
 
                         next_move
                     } else {
-                        self.frame_scroll
+                        self.frame_caroussel.value
                     };
                 }
 
-                self.frame_scroll = scissor.gui_slider(
+                self.frame_caroussel.value = scissor.gui_slider(
                     rrect(
-                        x,
+                        self.frame_caroussel.x,
                         scissor.get_screen_height() - scrollbar_height,
-                        width,
+                        self.frame_caroussel.width,
                         scrollbar_height,
                     ),
                     None,
                     None,
-                    self.frame_scroll,
+                    self.frame_caroussel.value,
                     0.0,
                     max_value,
                 );
@@ -616,10 +726,20 @@ impl Animation {
 
         let mut new_frame = frame.clone(texture);
         new_frame.render_screen(&mut handle.begin_drawing(thread), thread);
-        new_frame.render_miniature(handle, thread);
+        new_frame.render_miniature(
+            handle,
+            thread,
+            self.frame_caroussel.display_width,
+            self.frame_caroussel.display_height,
+        );
         new_frame.save_state();
         frame.is_selected = false;
-        frame.render_miniature(handle, thread);
+        frame.render_miniature(
+            handle,
+            thread,
+            self.frame_caroussel.display_width,
+            self.frame_caroussel.display_height,
+        );
         frame.save_state();
 
         frame.chage_figure_draw(true);
@@ -636,7 +756,7 @@ impl Animation {
         let mut frame = &mut self.frames[self.selected_frame];
         frame.is_selected = true;
         self.main_texture = frame.texture.clone();
-        self.frame_scroll = 0.0;
+        self.frame_caroussel.value = 0.0;
     }
 
     fn play(&mut self, handle: &mut RaylibHandle, thread: &RaylibThread) {
@@ -795,7 +915,12 @@ impl Animation {
             last_frame.save_state();
             last_frame.chage_figure_draw(false);
             last_frame.render_screen(&mut handle.begin_drawing(thread), thread);
-            last_frame.render_miniature(handle, thread);
+            last_frame.render_miniature(
+                handle,
+                thread,
+                animation.frame_caroussel.display_width,
+                animation.frame_caroussel.display_height,
+            );
             last_frame.chage_figure_draw(true);
             last_frame.render_screen(&mut handle.begin_drawing(thread), thread);
 
