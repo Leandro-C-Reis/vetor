@@ -59,6 +59,7 @@ pub struct Animation {
     main_texture: Rc<RefCell<RenderTexture2D>>,
     main_scroll: Vector2,
     main_position: Vector2,
+    video_camera: Rectangle,
     // Frame scroll
     frame_caroussel: Caroussel,
     // Sidebar
@@ -95,6 +96,8 @@ impl Animation {
             first_frame.texture.try_borrow().ok().unwrap().height() / 2,
         ));
 
+        let video_width = 1080;
+        let video_height = 720;
         let start = rvec2(sidebar.x, sidebar.y).add(rvec2(15, 20));
         let mut animation = Animation {
             export_format: ExportFormat::GIF,
@@ -117,6 +120,28 @@ impl Animation {
             play: Button::dynamic_new(0, 1, start, sidebar.width - 30.0),
             main_texture: first_frame.texture.clone(),
             main_scroll: Vector2::zero(),
+            video_camera: rrect(
+                (first_frame
+                    .texture
+                    .clone()
+                    .try_borrow()
+                    .ok()
+                    .unwrap()
+                    .width()
+                    / 2)
+                    - video_width / 2,
+                (first_frame
+                    .texture
+                    .clone()
+                    .try_borrow()
+                    .ok()
+                    .unwrap()
+                    .height()
+                    / 2)
+                    - video_height / 2,
+                video_width,
+                video_height,
+            ),
             previous_mouse_pos: Vector2::zero(),
             figures: vec![],
             frames: vec![first_frame],
@@ -142,6 +167,7 @@ impl Animation {
             thread,
             animation.frame_caroussel.display_width,
             animation.frame_caroussel.display_height,
+            animation.video_camera,
         );
         animation
     }
@@ -273,7 +299,13 @@ impl Animation {
 
         // Draw Main Frame
         {
-            let main_texture = self.main_texture.try_borrow().ok().unwrap();
+            let mut main_texture = self.main_texture.try_borrow_mut().ok().unwrap();
+            // Draw vide camera
+            {
+                let mut draw = draw_handle.begin_texture_mode(thread, &mut main_texture);
+
+                draw.draw_rectangle_lines_ex(self.video_camera, 1.0, Color::BLACK);
+            }
             let mut texture_rec = rrect(
                 0,
                 0,
@@ -731,6 +763,7 @@ impl Animation {
             thread,
             self.frame_caroussel.display_width,
             self.frame_caroussel.display_height,
+            self.video_camera,
         );
         new_frame.save_state();
         frame.is_selected = false;
@@ -739,6 +772,7 @@ impl Animation {
             thread,
             self.frame_caroussel.display_width,
             self.frame_caroussel.display_height,
+            self.video_camera,
         );
         frame.save_state();
 
@@ -920,6 +954,7 @@ impl Animation {
                 thread,
                 animation.frame_caroussel.display_width,
                 animation.frame_caroussel.display_height,
+                animation.video_camera,
             );
             last_frame.chage_figure_draw(true);
             last_frame.render_screen(&mut handle.begin_drawing(thread), thread);
@@ -978,6 +1013,7 @@ impl Animation {
             let texture = frame.texture.try_borrow().ok().unwrap();
             let mut image = texture.load_image().unwrap();
             image.flip_vertical();
+            image.crop(self.video_camera);
             image.export_image(tmp_file);
             stdin.write_all(fs::read(tmp_file).ok().unwrap().as_slice());
         }

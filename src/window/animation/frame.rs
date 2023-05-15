@@ -77,9 +77,11 @@ impl Frame {
         thread: &RaylibThread,
         width: i32,
         height: i32,
+        crop: Rectangle,
     ) {
         let mut image = self.texture.borrow().texture().load_image().unwrap();
         image.flip_vertical();
+        image.crop(crop);
         image.resize(width, height);
 
         self.miniature = Some(handle.load_texture_from_image(thread, &image).ok().unwrap());
