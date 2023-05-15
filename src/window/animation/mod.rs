@@ -354,14 +354,14 @@ impl Animation {
 
                 if self.main_scroll.x > 0.0 {
                     self.main_scroll.x = 0.0;
-                } else if -self.main_scroll.x > max_scroll_x {
-                    self.main_scroll.x = -max_scroll_x;
+                } else if -self.main_scroll.x >= max_scroll_x {
+                    self.main_scroll.x = -max_scroll_x + 1.0;
                 }
 
                 if self.main_scroll.y > 0.0 {
                     self.main_scroll.y = 0.0;
-                } else if -self.main_scroll.y > max_scroll_y {
-                    self.main_scroll.y = -max_scroll_y;
+                } else if -self.main_scroll.y >= max_scroll_y {
+                    self.main_scroll.y = -max_scroll_y + 1.0;
                 }
             }
 
