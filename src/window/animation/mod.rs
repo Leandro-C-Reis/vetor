@@ -3,11 +3,16 @@ pub mod frame;
 use self::frame::*;
 use super::util::button::Button;
 use crate::{
-    archives::{self, figure_to_raw},
+    archives::{self, FileEncoding},
     cstr,
     figure::Figure,
     icons::VetorIcons,
     maths::*,
+};
+use flate2::{
+    read::{GzDecoder, ZlibDecoder},
+    write::ZlibEncoder,
+    Compression,
 };
 use native_dialog::FileDialog;
 use raylib::{
@@ -32,12 +37,6 @@ use std::{
 enum ExportFormat {
     MP4 = 0,
     GIF = 1,
-}
-
-#[derive(Debug, Clone, Copy)]
-enum SaveFormat {
-    RAW = 0,
-    GZIP = 1,
 }
 
 struct Caroussel {
@@ -73,7 +72,7 @@ pub struct Animation {
     framerate: f32,
     // Export Dialog
     export_format: ExportFormat,
-    save_format: SaveFormat,
+    save_format: FileEncoding,
 }
 
 impl Animation {
@@ -89,7 +88,8 @@ impl Animation {
         );
         first_frame.is_selected = true;
 
-        let mut figure = archives::import_raw_figure("./src/assets/figures/men.vfr");
+        let mut figure =
+            archives::import_figure("./src/assets/figures/men.vfr", archives::FileEncoding::RAW);
 
         figure.center_to(rvec2(
             first_frame.texture.try_borrow().ok().unwrap().width() / 2,
@@ -101,7 +101,7 @@ impl Animation {
         let start = rvec2(sidebar.x, sidebar.y).add(rvec2(15, 20));
         let mut animation = Animation {
             export_format: ExportFormat::GIF,
-            save_format: SaveFormat::RAW,
+            save_format: FileEncoding::RAW,
             selected_frame: 0,
             frame_caroussel: Caroussel {
                 value: 0.0,
@@ -189,7 +189,10 @@ impl Animation {
                 .expect("Cannot load file with filesytem");
 
             if path.is_some() {
-                let mut figure = archives::import_raw_figure(path.unwrap().to_str().unwrap());
+                let mut figure = archives::import_figure(
+                    path.unwrap().to_str().unwrap(),
+                    archives::FileEncoding::RAW,
+                );
                 figure.center_to(rvec2(
                     handle.get_screen_width() / 2,
                     handle.get_screen_height() / 2,
@@ -686,29 +689,29 @@ impl Animation {
             self.save_animation.activated = false;
         }
 
-        let save = draw_handle.gui_combo_box(
+        let mut save = match self.save_format {
+            FileEncoding::RAW => 0,
+            FileEncoding::GZIP => 1,
+            FileEncoding::ZLIB => 2,
+        };
+
+        save = draw_handle.gui_combo_box(
             rrect(dialog_rect.x + 154.0, dialog_rect.y + 40.0, 120, 30),
-            Some(rstr!("raw;gzip")),
-            self.save_format as i32,
+            Some(rstr!("raw;gzip;zlib")),
+            save as i32,
         );
 
         self.save_format = match save {
-            0 => SaveFormat::RAW,
-            1 => SaveFormat::GZIP,
-            _ => SaveFormat::GZIP,
+            0 => FileEncoding::RAW,
+            1 => FileEncoding::GZIP,
+            _ => FileEncoding::ZLIB,
         };
 
         if draw_handle.gui_button(
             rrect(dialog_rect.x + 154.0, dialog_rect.y + 80.0, 120, 30),
             Some(rstr!("Salvar")),
         ) {
-            match self.save_format {
-                SaveFormat::RAW => {
-                    self.save_raw("unnamed.var");
-                }
-                SaveFormat::GZIP => (),
-            }
-
+            self.save("unnamed");
             self.save_animation.activated = false;
         }
     }
@@ -811,10 +814,16 @@ impl Animation {
 
     // External files:
     /// Save animation into a file with raw format
-    pub fn save_raw(&mut self, file: &str) {
+    fn save(&mut self, filename: &str) {
+        let extension = match self.save_format {
+            FileEncoding::RAW => "var",
+            FileEncoding::GZIP => "vag",
+            FileEncoding::ZLIB => "vaz",
+        };
+
         let path = FileDialog::new()
-            .set_filename(file)
-            .add_filter("Vetor Animation Raw", &["var"])
+            .set_filename(&(filename.to_owned() + "." + extension))
+            .add_filter("Ve tor Animation Raw", &["var", "vag", "vaz"])
             .show_save_single_file()
             .expect("Cannot save file");
 
@@ -822,7 +831,7 @@ impl Animation {
             return;
         }
 
-        let mut file = File::create(path.unwrap()).ok().unwrap();
+        let mut file = ZlibEncoder::new(vec![], Compression::default());
 
         // Save Figures
         for (i, figRef) in self.figures.iter().enumerate() {
@@ -880,11 +889,34 @@ impl Animation {
                 }
             }
         }
+
+        fs::write(path.unwrap(), file.finish().unwrap()).ok();
     }
 
     /// Load animation scenes from raw file
-    pub fn from_raw(file: &str, handle: &mut RaylibHandle, thread: &RaylibThread) -> Animation {
-        let file = fs::read_to_string(file).ok().unwrap();
+    pub fn load(
+        path: &str,
+        handle: &mut RaylibHandle,
+        thread: &RaylibThread,
+        encoding: FileEncoding,
+    ) -> Animation {
+        let buffer = fs::read(path).ok().unwrap();
+        let file = match encoding {
+            FileEncoding::RAW => String::from_utf8(buffer).unwrap(),
+            FileEncoding::GZIP => {
+                let mut decoder = GzDecoder::new(buffer.as_slice());
+                let mut raw = String::new();
+                decoder.read_to_string(&mut raw);
+                raw
+            }
+            FileEncoding::ZLIB => {
+                let mut decoder = ZlibDecoder::new(buffer.as_slice());
+                let mut raw = String::new();
+                decoder.read_to_string(&mut raw);
+                raw
+            }
+        };
+
         let split: Vec<_> = file.split("@Frame").collect();
         let (figs, frames) = (split[0], &split[1..]);
         let mut animation = Animation::new(handle, thread);

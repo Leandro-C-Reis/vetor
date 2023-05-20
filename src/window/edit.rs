@@ -1,6 +1,6 @@
 use super::util::button::Button;
 use crate::{
-    archives::export_raw_figure,
+    archives::{self, FileEncoding},
     cstr,
     figure::{edge::*, *},
     icons::VetorIcons,
@@ -261,7 +261,7 @@ impl Edit {
         }
 
         if self.save_figure.activated {
-            export_raw_figure("unnamed.vfr", self.figure.clone());
+            archives::export_figure("unnamed", self.figure.clone(), FileEncoding::ZLIB);
         }
     }
 

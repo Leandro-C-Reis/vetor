@@ -2,7 +2,13 @@ use crate::{
     figure::{edge::*, Figure},
     window::animation::Animation,
 };
+use flate2::{
+    read::{GzDecoder, ZlibDecoder},
+    write::{GzEncoder, ZlibEncoder},
+    Compression,
+};
 use raylib::prelude::{rvec2, Vector2};
+use std::io::prelude::*;
 use std::{cmp::Ordering, collections::HashMap, fs, io::Write};
 
 #[derive(Clone, Debug)]
@@ -14,27 +20,68 @@ pub struct Point {
     pub index: usize,
 }
 
-pub fn import_raw_figure(file: &str) -> Figure {
-    let file =
-        fs::read_to_string(file).expect(&format!("Should be able to read the file: {}", file));
-    raw_to_figure(file.as_str())
+pub enum FileEncoding {
+    RAW,
+    ZLIB,
+    GZIP,
 }
 
-pub fn export_raw_figure(file: &str, mut figure: Figure) {
-    let mut file = fs::File::create("./src/assets/figures/".to_owned() + file)
-        .ok()
-        .unwrap();
+pub fn import_figure(path: &str, encoding: FileEncoding) -> Figure {
+    let file = fs::read(path).expect(&format!("Should be able to read the file: {}", path));
+
+    match encoding {
+        FileEncoding::RAW => raw_to_figure(&String::from_utf8(file).unwrap()),
+        FileEncoding::GZIP => {
+            let mut decoder = GzDecoder::new(file.as_slice());
+            let mut raw_figure = String::new();
+            decoder.read_to_string(&mut raw_figure);
+            raw_to_figure(&raw_figure)
+        }
+        FileEncoding::ZLIB => {
+            let mut decoder = ZlibDecoder::new(file.as_slice());
+            let mut raw_figure = String::new();
+            decoder.read_to_string(&mut raw_figure);
+            raw_to_figure(&raw_figure)
+        }
+    }
+}
+
+pub fn export_figure(filename: &str, mut figure: Figure, encoding: FileEncoding) {
+    let extension = match encoding {
+        FileEncoding::RAW => "vfr",
+        FileEncoding::GZIP => "vfg",
+        FileEncoding::ZLIB => "vfz",
+    };
+
+    let mut file =
+        fs::File::create("./src/assets/figures/".to_owned() + filename + "." + extension)
+            .ok()
+            .unwrap();
 
     let mut pts = figure_to_raw(figure);
+    let mut raw_figure = String::new();
+
     for point in pts {
-        file.write(
-            format!(
-                "{},{},{},{},{}\n",
-                point.typ, point.x, point.y, point.parent, point.index
-            )
-            .as_bytes(),
-        )
-        .expect("Cannot write points to file");
+        raw_figure += &format!(
+            "{},{},{},{},{}\n",
+            point.typ, point.x, point.y, point.parent, point.index
+        );
+    }
+
+    match encoding {
+        FileEncoding::RAW => {
+            file.write_all(raw_figure.as_bytes()).ok();
+        }
+        FileEncoding::GZIP => {
+            let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+            encoder.write_all(raw_figure.as_bytes());
+            file.write_all(encoder.finish().unwrap().as_slice()).ok();
+        }
+        FileEncoding::ZLIB => {
+            let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+            encoder.write_all(raw_figure.as_bytes());
+            file.write_all(encoder.finish().unwrap().as_slice()).ok();
+        }
     }
 }
 
