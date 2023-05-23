@@ -21,6 +21,8 @@ use crate::{
 use raylib::{ffi::CheckCollisionPointRec, prelude::*};
 use std::{cell::RefCell, ffi::CString, fs, path::Path, rc::Rc};
 
+pub const BACKGROUND: (u32, u32) = (1080 * 5, 720 * 5);
+
 pub struct Window {
     pub tabs: Vec<Rc<RefCell<Tab>>>,
     pub selected_tab: Rc<RefCell<Tab>>,
@@ -28,30 +30,13 @@ pub struct Window {
 
 impl Window {
     pub fn new(handle: &mut RaylibHandle, thread: &RaylibThread) -> Window {
-        let mut figure =
-            archives::import_figure("./src/assets/figures/men.vfr", archives::FileEncoding::RAW);
-
-        figure.center_to(rvec2(
-            handle.get_screen_width() / 2,
-            handle.get_screen_height() / 2,
-        ));
-
         let texture = handle
-            .load_render_texture(
-                &thread,
-                handle.get_screen_width() as u32,
-                handle.get_screen_height() as u32,
-            )
+            .load_render_texture(&thread, BACKGROUND.0, BACKGROUND.1)
             .ok()
             .unwrap();
 
-        let edit_tab = Rc::new(RefCell::new(Tab::Edit(Edit::new(figure.clone(), texture))));
-        let animation_tab = Rc::new(RefCell::new(Tab::Animation(Animation::load(
-            "./src/assets/animations/unnamed.var",
-            handle,
-            thread,
-            archives::FileEncoding::RAW,
-        ))));
+        let edit_tab = Rc::new(RefCell::new(Tab::Edit(Edit::new(handle, thread, texture))));
+        let animation_tab = Rc::new(RefCell::new(Tab::Animation(Animation::new(handle, thread))));
 
         Window {
             tabs: vec![edit_tab.clone(), animation_tab.clone()],

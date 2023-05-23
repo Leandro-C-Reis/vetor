@@ -1,7 +1,7 @@
 pub mod frame;
 
 use self::frame::*;
-use super::util::button::Button;
+use super::{util::button::Button, BACKGROUND};
 use crate::{
     archives::{self, FileEncoding},
     cstr,
@@ -80,12 +80,7 @@ impl Animation {
         let sidebar = rrect(0, 30, 100, handle.get_screen_height() - 30);
         let frame_position = rvec2(sidebar.width, 30);
 
-        let mut first_frame = Frame::new(
-            handle,
-            thread,
-            unsafe { GetMonitorWidth(0) } as u32,
-            unsafe { GetMonitorHeight(0) } as u32,
-        );
+        let mut first_frame = Frame::new(handle, thread, BACKGROUND.0, BACKGROUND.1);
         first_frame.is_selected = true;
 
         let mut figure =
@@ -99,6 +94,39 @@ impl Animation {
         let video_width = 1080;
         let video_height = 720;
         let start = rvec2(sidebar.x, sidebar.y).add(rvec2(15, 20));
+        let video_camera = rrect(
+            (first_frame
+                .texture
+                .clone()
+                .try_borrow()
+                .ok()
+                .unwrap()
+                .width()
+                / 2)
+                - video_width / 2,
+            (first_frame
+                .texture
+                .clone()
+                .try_borrow()
+                .ok()
+                .unwrap()
+                .height()
+                / 2)
+                - video_height / 2,
+            video_width,
+            video_height,
+        );
+
+        let main_center = rvec2(
+            (handle.get_screen_width() / 2) + frame_position.x as i32,
+            (handle.get_screen_height() / 2) + frame_position.y as i32,
+        );
+
+        let texture_center = rvec2(
+            -(BACKGROUND.0 as i32 / 2) + (main_center.x) as i32,
+            -(BACKGROUND.1 as i32 / 2) + main_center.y as i32,
+        );
+
         let mut animation = Animation {
             export_format: ExportFormat::GIF,
             save_format: FileEncoding::RAW,
@@ -119,29 +147,8 @@ impl Animation {
             save_animation: Button::dynamic_new(0, 0, start, sidebar.width - 30.0),
             play: Button::dynamic_new(0, 1, start, sidebar.width - 30.0),
             main_texture: first_frame.texture.clone(),
-            main_scroll: Vector2::zero(),
-            video_camera: rrect(
-                (first_frame
-                    .texture
-                    .clone()
-                    .try_borrow()
-                    .ok()
-                    .unwrap()
-                    .width()
-                    / 2)
-                    - video_width / 2,
-                (first_frame
-                    .texture
-                    .clone()
-                    .try_borrow()
-                    .ok()
-                    .unwrap()
-                    .height()
-                    / 2)
-                    - video_height / 2,
-                video_width,
-                video_height,
-            ),
+            main_scroll: texture_center,
+            video_camera,
             previous_mouse_pos: Vector2::zero(),
             figures: vec![],
             frames: vec![first_frame],
@@ -193,10 +200,7 @@ impl Animation {
                     path.unwrap().to_str().unwrap(),
                     archives::FileEncoding::RAW,
                 );
-                figure.center_to(rvec2(
-                    handle.get_screen_width() / 2,
-                    handle.get_screen_height() / 2,
-                ));
+                figure.center_to(rvec2(BACKGROUND.0 / 2, BACKGROUND.1 / 2));
                 self.push_figure(figure);
             }
         }
@@ -303,7 +307,7 @@ impl Animation {
         // Draw Main Frame
         {
             let mut main_texture = self.main_texture.try_borrow_mut().ok().unwrap();
-            // Draw vide camera
+            // Draw video camera
             {
                 let mut draw = draw_handle.begin_texture_mode(thread, &mut main_texture);
 
@@ -330,9 +334,9 @@ impl Animation {
                         }),
             );
 
-            let scissor_rec;
-            (scissor_rec, self.main_scroll) =
+            let (scissor_rec, main_scroll) =
                 draw_handle.gui_scroll_panel(main_rec, None, texture_rec, self.main_scroll);
+            self.main_scroll = main_scroll;
 
             // Draw main screen texture
             let mut scissor = draw_handle.begin_scissor_mode(
@@ -931,14 +935,14 @@ impl Animation {
         }
 
         let mut last_frame = animation.frames.first_mut().unwrap();
-        let center = rvec2(
-            handle.get_screen_width() / 2,
-            handle.get_screen_height() / 2,
-        );
 
+        let center = rvec2(BACKGROUND.0 / 2, BACKGROUND.1 / 2);
+
+        // Map and mount each frame
         for (i, frameStr) in frames.iter().enumerate() {
             last_frame.figure_animation = vec![];
 
+            // Map and mount each Figure in figure_animation
             for state in frameStr.split_once("\n").unwrap().1.split("^") {
                 if state.trim().len() == 0 {
                     continue;
@@ -948,6 +952,7 @@ impl Animation {
                 let index = lines.next().unwrap().parse::<usize>().ok().unwrap();
                 let mut moved_edges = HashMap::new();
 
+                // Map and moutn each figure edge state
                 for line in lines {
                     let edge: Vec<_> = line.split(",").collect();
 
@@ -968,6 +973,12 @@ impl Animation {
                 }
 
                 let mut figure = animation.figures[index].try_borrow_mut().ok().unwrap();
+
+                for (_, e) in moved_edges.iter_mut() {
+                    e.0 = e.0.add(center);
+                    e.1 = e.1.add(center);
+                }
+
                 figure.load_state(moved_edges.clone());
 
                 last_frame.figure_animation.push(FigureAnimation {

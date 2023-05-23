@@ -93,9 +93,9 @@ impl Frame {
         }
     }
 
-    pub fn chage_figure_draw(&mut self, point: bool) {
+    pub fn chage_figure_draw(&mut self, draw_points: bool) {
         for state in &mut self.figure_animation {
-            state.figure.borrow_mut().draw_option.point = point;
+            state.figure.borrow_mut().draw_option.point = draw_points;
         }
     }
 }
