@@ -6,6 +6,7 @@ use crate::{
     icons::VetorIcons,
     maths::*,
 };
+use native_dialog::FileDialog;
 use raylib::{prelude::*, texture::RenderTexture2D};
 use std::{ffi::CString, fs, path::Path};
 
@@ -31,6 +32,7 @@ pub struct Edit {
     format: Button,
 
     save_figure: Button,
+    encoding: FileEncoding,
 }
 
 impl Edit {
@@ -84,10 +86,15 @@ impl Edit {
             previous_mouse_pos: handle.get_mouse_position(),
             main_scroll: texture_center,
             save_figure: Button::new(start.add(rvec2(5, 260))),
+            encoding: FileEncoding::ZLIB,
         }
     }
 
     pub fn update(&mut self, handle: &RaylibHandle) {
+        if self.save_figure.activated {
+            return;
+        }
+
         if self.insert.activated || self.circle.activated {
             match self.figure.tmp_edge {
                 Some(mut edge) => {
@@ -282,10 +289,6 @@ impl Edit {
         if !self.figure.pressed && handle.is_mouse_button_up(MouseButton::MOUSE_BUTTON_LEFT) {
             self.figure.should_update = true;
         }
-
-        if self.save_figure.activated {
-            archives::export_figure("unnamed", self.figure.clone(), FileEncoding::ZLIB);
-        }
     }
 
     pub fn draw(&mut self, handle: &mut RaylibDrawHandle, thread: &RaylibThread) {
@@ -360,6 +363,9 @@ impl Edit {
             );
 
             self.previous_mouse_pos = mouse_pos;
+        }
+        if self.save_figure.activated {
+            self.draw_save_dialog(handle, thread);
         }
         // ===== END Drawing main Texture Screen =====
         // ===== Drawing sidebar edit menu =====
@@ -447,7 +453,7 @@ impl Edit {
                 }
             }
 
-            self.save_figure.activated = handle.gui_button(
+            self.save_figure.activated = handle.gui_toggle(
                 rrect(
                     self.save_figure.start.x,
                     self.save_figure.start.y,
@@ -455,8 +461,77 @@ impl Edit {
                     30,
                 ),
                 Some(self.save_figure.text.clone().unwrap().as_c_str()),
+                self.save_figure.activated,
             );
         }
         // ===== END Drawing sidebar edit menu =====
+    }
+
+    fn draw_save_dialog(&mut self, draw_handle: &mut RaylibDrawHandle, thread: &RaylibThread) {
+        let w = draw_handle.get_screen_width();
+        let h = draw_handle.get_screen_height();
+
+        // Draw transparent background
+        draw_handle.draw_rectangle(
+            self.sidebar_width as i32,
+            self.start.y as i32,
+            w,
+            h,
+            Color::get_color(draw_handle.gui_get_style(
+                GuiControl::DEFAULT,
+                GuiControlProperty::BASE_COLOR_NORMAL as i32,
+            ) as u32)
+            .fade(0.3),
+        );
+
+        let dialog_rect = rrect((w / 2) - 150, (h / 2) - 100, 300, 90);
+
+        self.save_figure.activated =
+            !draw_handle.gui_window_box(dialog_rect, Some(rstr!("Salvar como:")));
+
+        let save = draw_handle.gui_combo_box(
+            rrect(dialog_rect.x + 25.0, dialog_rect.y + 40.0, 120, 30),
+            Some(rstr!("raw;zlib;gzip")),
+            self.encoding as i32,
+        );
+
+        self.encoding = match save {
+            0 => FileEncoding::RAW,
+            1 => FileEncoding::ZLIB,
+            2 => FileEncoding::GZIP,
+            _ => FileEncoding::ZLIB,
+        };
+
+        if draw_handle.gui_button(
+            rrect(dialog_rect.x + 154.0, dialog_rect.y + 40.0, 120, 30),
+            Some(rstr!("Salvar")),
+        ) {
+            self.save("unnamed");
+            self.save_figure.activated = false;
+        }
+    }
+
+    fn save(&mut self, filename: &str) {
+        let extension = match self.encoding {
+            FileEncoding::RAW => "vfr",
+            FileEncoding::GZIP => "vfg",
+            FileEncoding::ZLIB => "vfz",
+        };
+
+        let path = FileDialog::new()
+            .set_filename(&(filename.to_owned() + "." + extension))
+            .add_filter("Vetor Figure", &["vfr", "vfg", "vfz"])
+            .show_save_single_file()
+            .expect("Cannot save file");
+
+        if path.is_none() {
+            return;
+        }
+
+        archives::export_figure(
+            path.unwrap().to_str().unwrap(),
+            self.figure.clone(),
+            self.encoding,
+        );
     }
 }

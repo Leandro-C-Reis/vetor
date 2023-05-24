@@ -20,6 +20,7 @@ pub struct Point {
     pub index: usize,
 }
 
+#[derive(Clone, Copy)]
 pub enum FileEncoding {
     RAW,
     ZLIB,
@@ -46,17 +47,8 @@ pub fn import_figure(path: &str, encoding: FileEncoding) -> Figure {
     }
 }
 
-pub fn export_figure(filename: &str, mut figure: Figure, encoding: FileEncoding) {
-    let extension = match encoding {
-        FileEncoding::RAW => "vfr",
-        FileEncoding::GZIP => "vfg",
-        FileEncoding::ZLIB => "vfz",
-    };
-
-    let mut file =
-        fs::File::create("./src/assets/figures/".to_owned() + filename + "." + extension)
-            .ok()
-            .unwrap();
+pub fn export_figure(path: &str, mut figure: Figure, encoding: FileEncoding) {
+    let mut file = fs::File::create(path).ok().unwrap();
 
     let mut pts = figure_to_raw(figure);
     let mut raw_figure = String::new();

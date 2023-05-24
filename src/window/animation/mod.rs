@@ -827,7 +827,7 @@ impl Animation {
 
         let path = FileDialog::new()
             .set_filename(&(filename.to_owned() + "." + extension))
-            .add_filter("Ve tor Animation Raw", &["var", "vag", "vaz"])
+            .add_filter("Vetor Animation", &["var", "vag", "vaz"])
             .show_save_single_file()
             .expect("Cannot save file");
 
