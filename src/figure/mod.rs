@@ -1,7 +1,6 @@
-#[allow(adts)]
 pub mod edge;
 use self::edge::{Edge, EdgeDrawOption, EdgeFormat};
-use crate::{log, window};
+use crate::{log, maths::Vector2Maths, window};
 use raylib::{
     prelude::{RaylibRenderTexture2D, *},
     texture::RenderTexture2D,
@@ -9,14 +8,15 @@ use raylib::{
 };
 use std::{cmp::Ordering, collections::HashMap, env, ops::Index};
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 enum FigMode {
     CONSTRUCTOR = 1,
     ANIMATION = 2,
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct Figure {
-    tree: Vec<Edge>,
+    pub tree: Vec<Edge>,
     mode: FigMode,
     pub should_update: bool,
     pub draw_option: EdgeDrawOption,
@@ -43,7 +43,7 @@ impl Figure {
     }
 
     // 1. === Update and Draw ===
-    pub fn update(&mut self, handle: &RaylibHandle) {
+    pub fn update(&mut self, handle: &RaylibHandle, start_position: Vector2) {
         self.selected = None;
 
         if self.should_update {
@@ -57,6 +57,7 @@ impl Figure {
                     &self.tree,
                     &mut self.pressed,
                     &mut self.presset_root,
+                    start_position,
                 );
 
                 if pressed_before != self.pressed {
@@ -181,6 +182,36 @@ impl Figure {
         edge.moved_angle = 0.0;
 
         self.tmp_edge = Some(edge);
+    }
+
+    /// Map and generate a static figure state
+    pub fn scan(&self) -> HashMap<usize, (Vector2, Vector2)> {
+        let mut compare_map = HashMap::new();
+
+        for (index, edge) in self.tree.iter().enumerate() {
+            compare_map.insert(index, (edge.start, edge.end));
+        }
+
+        compare_map
+    }
+
+    /// Load static state into Figure
+    pub fn load_state(&mut self, diff: HashMap<usize, (Vector2, Vector2)>) {
+        for (index, vertex) in diff.iter() {
+            let mut edge = &mut self.tree[*index];
+            edge.start = vertex.0;
+            edge.end = vertex.1;
+            edge.update_angle();
+        }
+    }
+
+    pub fn center_to(&mut self, center: Vector2) {
+        let diff = self.tree[0].start.sub(center);
+
+        for edge in &mut self.tree {
+            edge.start = edge.start.sub(diff);
+            edge.end = edge.end.sub(diff);
+        }
     }
 
     // 3. === Controllers ===
