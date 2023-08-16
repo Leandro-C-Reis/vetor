@@ -8,4 +8,4 @@ edition = "2021"
 [dependencies]
 flate2 = "1.0.26"
 native-dialog = "0.6.3"
-raylib = { version = "4.5.0", branch = "4.5.0", git = "https://github.com/litten2up/raylib-rs" }
+raylib = { version = "4.5.0", branch = "4.5.0", git = "https://github.com/Leandro-C-Reis/raylib-rs" }
